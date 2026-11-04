@@ -145,3 +145,19 @@ async def test_siem_tcp_delivery_and_reconnect() -> None:
         assert json.loads(body)["event"]["id"] == "k1"
     finally:
         server.close()
+
+
+def _finding(title: str = "t", summary: str = "s") -> Finding:
+    return Finding("k", "rule", title, Severity.HIGH, "log_rule", "dev", summary)
+
+
+def test_slack_text_cannot_trigger_mentions_or_links() -> None:
+    finding = _finding(summary="user <!channel> <https://evil.example|click> & <@U123>")
+    text = formats.slack_payload(finding)["text"]
+    assert "<" not in text and ">" not in text
+    assert "&lt;!channel&gt;" in text and "&amp;" in text
+
+
+def test_email_subject_stays_a_single_header_line() -> None:
+    subject = formats.email_subject(_finding(title="a\r\nBcc: evil@example.com"))
+    assert "\n" not in subject and "\r" not in subject

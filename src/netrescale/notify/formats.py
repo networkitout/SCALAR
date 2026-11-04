@@ -94,7 +94,8 @@ def octet_frame(payload: bytes) -> bytes:
 
 
 def email_subject(f: Finding) -> str:
-    return f"[netrescale][{str(f.severity).upper()}] {f.device or 'fleet'}: {f.title}"[:200]
+    subject = f"[netrescale][{str(f.severity).upper()}] {f.device or 'fleet'}: {f.title}"
+    return " ".join(subject.split())[:200]  # no CR/LF: a header must stay one line
 
 
 def email_body(f: Finding) -> str:
@@ -117,9 +118,15 @@ def email_body(f: Finding) -> str:
     return "\n".join(lines)
 
 
+def _slack(text: str) -> str:
+    """Slack treats <...> as mentions and links (<!channel>, <https://x|label>); log-derived
+    text must not trigger them. &, < and > are the only characters Slack asks to escape."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def slack_payload(f: Finding) -> dict[str, Any]:
-    text = f"*[{str(f.severity).upper()}]* {f.title}\n{f.summary}"
+    text = f"*[{str(f.severity).upper()}]* {_slack(f.title)}\n{_slack(f.summary)}"
     diff = f.evidence.get("diff")
     if diff:
-        text += "\n```" + diff[:2500] + "```"
+        text += "\n```" + _slack(diff[:2500]).replace("```", "'''") + "```"
     return {"text": text}
