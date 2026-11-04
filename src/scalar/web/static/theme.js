@@ -2,13 +2,12 @@
 
 (() => {
   const key = "scalar.theme";
-  const system = window.matchMedia("(prefers-color-scheme: dark)");
   const valid = (value) => value === "dark" || value === "light" ? value : null;
   let preference = null;
   try { preference = valid(localStorage.getItem(key)); } catch { preference = null; }
 
   function apply() {
-    const theme = preference || (system.matches ? "dark" : "light");
+    const theme = preference || "dark"; // dark is the primary theme; the toggle opts into light
     document.documentElement.dataset.theme = theme;
     document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
       const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
@@ -34,7 +33,6 @@
     });
     apply();
   });
-  system.addEventListener("change", () => { if (preference === null) apply(); });
   window.addEventListener("storage", (event) => {
     if (event.key === key || event.key === null) { preference = valid(event.newValue); apply(); }
   });

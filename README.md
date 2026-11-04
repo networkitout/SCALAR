@@ -33,7 +33,7 @@ administration. PostgreSQL/daemon failures are displayed explicitly; an empty da
 that monitoring is healthy.
 
 The sun/moon button on the login page and dashboard switches light/dark mode. Your choice is
-remembered in that browser; without a saved choice, the interface follows the system theme.
+remembered in that browser; without a saved choice, the interface uses the dark theme.
 
 | Milestone | State |
 |---|---|

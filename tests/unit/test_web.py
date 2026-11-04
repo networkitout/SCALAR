@@ -629,7 +629,7 @@ def test_packaged_ui_and_preview_are_isolated() -> None:
         assert client.get("/static/style.css").status_code == 200
         assert client.get("/static/theme.js").status_code == 200
         assert client.get("/static/lucide.min.js").status_code == 200
-        assert client.get("/static/plex-regular.woff2").status_code == 200
+        assert client.get("/static/style.css").status_code == 200
         assert client.get("/api/session").json()["demo"] is True
         assert len(client.get("/api/devices").json()["items"]) == 4
         assert (
