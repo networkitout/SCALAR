@@ -1,0 +1,12 @@
+# Bound the rsyslog catch-all for senders that are not in the inventory. Without the
+# firewall rules from `netrescale rsyslog-config --nft`, anyone who can reach 514/tcp could
+# otherwise fill the disk. copytruncate keeps rsyslog's open file handle valid.
+/var/log/netrescale/syslog/quarantine.log {
+    size 50M
+    rotate 3
+    compress
+    missingok
+    notifempty
+    copytruncate
+    create 0640 syslog netrescale
+}

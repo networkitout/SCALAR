@@ -1,0 +1,97 @@
+# netrescale configuration: copy to /etc/netrescale/config.yaml (root:netrescale 0640).
+# This file holds NO secrets. Credentials are referenced as local:<name> and stored in the
+# encrypted vault with `netrescale cred set <name>`.
+
+admin_group: netrescale-admin
+max_credential_age_days: 90
+database_url: "postgresql+psycopg:///netrescale"   # local socket, peer auth
+
+web:
+  host: 127.0.0.1
+  port: 8080
+  allow_http: false
+  allowed_hosts: [localhost, 127.0.0.1]
+  session_hours: 8
+  # public_url: https://netrescale.example.internal
+  # Internal HTTP requires explicit allow_http: true and a systemd client-network override.
+
+defaults:
+  nitro_credential: local:nr_nitro     # least-privilege NITRO account (netrescale_ro cmdPolicy)
+  # Reserved for a future active-collection release; unused while every device is in observe mode.
+  sweep_credential: local:nr_sweep
+  nitro_port: 443
+  ssh_port: 22
+  # ca_bundle: /etc/netrescale/ca.pem  # if mgmt certs are CA-issued; otherwise pin per device
+  intervals:
+    config_probe: 60       # seconds between nsconfig change checks
+    config_full: 21600     # full running/saved config fetch as a safety net
+    stats: 60
+    log_pull: 900            # reserved; SSH log pulls are not available in this release
+    sweep: 21600             # reserved; host sweeps are not available in this release
+    syslog_silence_alert: 900
+  # File-integrity monitoring over read-only NITRO systemfile (opt-in per device: fim.enabled).
+  fim:
+    credential: local:nr_fim   # separate listing account (`netrescale snippets` prints it)
+    webroot_interval: 600      # Tier B web-root walk, 300-900 s; Tier A runs every config probe
+    rehash_interval: 900       # re-hash unchanged files so a forged mtime cannot hide an edit
+
+devices:
+  # This release supports observe mode: read-only NITRO plus passive syslog ingestion.
+  # Probe one HA secondary before rollout. Active/SSH mode is intentionally unavailable.
+  - name: ns-gw-01
+    nsip: 10.0.0.10
+    mode: observe
+    spki_pin: "REPLACE-with-output-of-netrescale-device-pin"
+    # firmware_variant: fips               # only if auto-detection is wrong
+    syslog_sources: [10.0.0.10]            # NSIP and any SNIPs that send syslog
+    timezone: UTC
+    date_format: YYYYMMDD
+
+  - name: ns-gw-02
+    nsip: 10.0.0.11
+    mode: observe
+    spki_pin: "REPLACE-with-output-of-netrescale-device-pin"
+    syslog_sources: [10.0.0.11]
+    # fim: {enabled: true}                 # after applying the nr_fim account (see snippets)
+
+ha_pairs:
+  - name: gw-pair-1
+    nodes: [ns-gw-01, ns-gw-02]
+    sync_grace_seconds: 180
+
+syslog:
+  enabled: true
+  poll_seconds: 5
+  batch_lines: 500
+  max_line_bytes: 262144
+  source_days: 2              # remove only fully processed daily source files
+  admin_networks: []          # e.g. [10.20.0.0/16]; empty disables the IP allowlist rule
+  admin_users: []             # e.g. [admin1, nr_nitro]; empty disables the user allowlist rule
+
+notify:
+  smtp:
+    host: smtp.example.internal
+    port: 587
+    starttls: true
+    sender: netrescale@example.com
+    recipients: [netsec@example.com]
+    # credential: local:smtp_relay         # only if the relay needs auth
+    min_severity: medium
+  siem:                                    # Cribl -> CrowdStrike NG-SIEM
+    host: cribl.example.internal
+    port: 6514
+    transport: tls
+    format: json                           # ECS-aligned JSON; or cef
+    # ca_bundle: /etc/netrescale/cribl-ca.pem
+    min_severity: info
+    forward_events: false
+  webhook:
+    url: https://hooks.slack.com/services/REPLACE
+    format: slack
+    min_severity: high
+  daily_digest_hour_utc: 7
+
+retention:
+  raw_days: 365
+  events_days: 90
+  findings_days: 400

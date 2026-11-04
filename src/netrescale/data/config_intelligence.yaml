@@ -1,0 +1,208 @@
+# Configuration posture and forensic observables. Matches establish feature applicability or
+# evidence that needs review; they never establish that an appliance was exploited.
+schema_version: 1
+data_version: "2026-10-13"
+
+indicators:
+  - id: gateway-or-aaa-configured
+    kind: feature
+    severity: info
+    title: NetScaler Gateway or AAA virtual server is configured
+    rationale: Gateway and AAA configuration is an applicability condition for several exploited CVEs. This configuration alone does not indicate vulnerability or exploitation; firmware exposure must be assessed separately.
+    remediation: Confirm the appliance is on a fixed build, follow each applicable Citrix bulletin, and review Gateway and AAA telemetry for independent evidence of abuse.
+    cves: [CVE-2023-3519, CVE-2023-4966, CVE-2023-6549, CVE-2025-5777, CVE-2025-6543,
+           CVE-2025-7775, CVE-2026-8452, CVE-2026-19490]
+    references:
+      - https://support.citrix.com/external/article/CTX561482
+      - https://support.citrix.com/external/article/CTX579459
+      - https://support.citrix.com/external/article/CTX584986
+      - https://support.citrix.com/external/article/CTX693420
+      - https://support.citrix.com/external/article/CTX694788
+      - https://support.citrix.com/external/article/CTX694938
+      - https://support.citrix.com/external/article/CTX696604
+      - https://support.citrix.com/external/article/CTX696939
+    match_any:
+      - {verbs: [add], objects: ["vpn vserver", "authentication vserver"]}
+    positive_tests: ["add vpn vserver gw SSL 192.0.2.10 443"]
+    negative_tests: ["add lb vserver web HTTP 192.0.2.20 80"]
+
+  - id: saml-configured
+    kind: feature
+    severity: info
+    title: SAML authentication is configured
+    rationale: A SAML service-provider action or IdP profile makes SAML-specific advisories relevant. The configuration does not show that the firmware is vulnerable or that exploitation occurred.
+    remediation: Compare the running build with the fixed builds in Citrix guidance and validate SAML configuration, certificates, and authentication logs.
+    cves: [CVE-2022-27518, CVE-2026-19490, CVE-2026-88779, CVE-2026-107406]
+    references:
+      - https://support.citrix.com/external/article/CTX474995
+      - https://support.citrix.com/external/article/CTX696939
+      - https://support.citrix.com/external/article/CTX697174
+      - https://support.citrix.com/external/article/CTX697191
+    match_any:
+      - {verbs: [add], objects: ["authentication samlaction", "authentication samlidpprofile"]}
+    positive_tests: ["add authentication samlAction corp-saml -samlIdPCertName corp"]
+    negative_tests: ["add authentication ldapAction corp-ldap -serverIP 192.0.2.30"]
+
+  - id: saml-idp-configured
+    kind: feature
+    severity: info
+    title: SAML identity provider is configured
+    rationale: A SAML IdP profile is the configuration applicability condition for CVE-2026-3055 and CVE-2026-8451, and one of two for CVE-2026-107406. Its presence does not prove vulnerability or exploitation.
+    remediation: Verify the running build against the Citrix bulletin and review IdP cookies and authentication telemetry using independent forensic evidence.
+    cves: [CVE-2026-3055, CVE-2026-8451, CVE-2026-107406]
+    references:
+      - https://support.citrix.com/external/article/CTX696300
+      - https://support.citrix.com/external/article/CTX696604
+      - https://support.citrix.com/external/article/CTX697191
+    match_any:
+      - {verbs: [add], objects: ["authentication samlidpprofile"]}
+    positive_tests: ["add authentication samlIdPProfile local-idp -samlSPCertName sp"]
+    negative_tests: ["add authentication samlAction remote-idp -samlIdPCertName idp"]
+
+  - id: ipv6-load-balancing-configured
+    kind: feature
+    severity: info
+    title: IPv6 load-balancing endpoint is configured
+    rationale: An IPv6 server, service, or load-balancing virtual server, including a domain-based (DBS) server resolved over IPv6, can make the IPv6 applicability path for CVE-2025-7775 relevant. This is a feature observation, not proof of exposure or exploitation.
+    remediation: Verify the firmware build against CTX694938 and confirm whether each IPv6 endpoint remains operationally required.
+    cves: [CVE-2025-7775]
+    references:
+      - https://support.citrix.com/external/article/CTX694938
+    match_any:
+      - verbs: [add]
+        objects: [server, service, "lb vserver"]
+        line_regex: '(?:^|\s)\[?[0-9a-f]*:[0-9a-f:]+\]?(?:\s|$)'
+      - verbs: [add]
+        objects: [server]
+        option_values: {ipv6address: ["YES"]}
+      - verbs: [add]
+        objects: [server]
+        option_values: {querytype: ["AAAA"]}
+    positive_tests:
+      - "add server app-v6 2001:db8::10"
+      - "add server dbs-v6 app.example.com -IPv6Address YES"
+      - "add server dbs-aaaa app.example.com -queryType AAAA"
+    negative_tests:
+      - "add server app-v4 192.0.2.10"
+      - "add server dbs-v4 app.example.com -IPv6Address NO"
+      - "add server dbs-a app.example.com -queryType A"
+
+  - id: hdx-content-routing-configured
+    kind: feature
+    severity: info
+    title: HDX content-routing virtual server is configured
+    rationale: HDX content routing is an applicability condition listed for CVE-2025-7775. This setting alone does not determine firmware exposure or indicate exploitation.
+    remediation: Verify the build against CTX694938 and remove the HDX content-routing service if it is not required.
+    cves: [CVE-2025-7775]
+    references:
+      - https://support.citrix.com/external/article/CTX694938
+    match_any:
+      - verbs: [add]
+        objects: ["cr vserver"]
+        line_regex: '^add\s+cr\s+vserver\s+\S+\s+HDX(?:\s|$)'
+    positive_tests: ["add cr vserver hdx-cr HDX 192.0.2.40 443"]
+    negative_tests: ["add cr vserver web-cr HTTP 192.0.2.40 80"]
+
+  - id: insecure-management-gui
+    kind: weakness
+    severity: high
+    title: Management GUI permits non-secure access
+    rationale: A management IP configured with GUI ENABLED instead of SECUREONLY can expose administrative authentication and sessions over HTTP.
+    remediation: Restrict management access to a dedicated network and configure the GUI as SECUREONLY after validating HTTPS administration.
+    cves: []
+    references:
+      - https://docs.netscaler.com/en-us/citrix-adc/current-release/system/configuring-netscaler-ip-addresses/configuring-netscaler-owned-ip-addresses
+    match_any:
+      - verbs: [add, set]
+        objects: ["ns ip", "ns ip6"]
+        option_values: {gui: [ENABLED]}
+    positive_tests: ["set ns ip 192.0.2.5 -gui ENABLED"]
+    negative_tests: ["set ns ip 192.0.2.5 -gui SECUREONLY"]
+
+  - id: legacy-tls-enabled
+    kind: weakness
+    severity: medium
+    title: Legacy TLS protocol is explicitly enabled
+    rationale: Enabling SSLv3, TLS 1.0, or TLS 1.1 weakens transport security and conflicts with current hardening guidance.
+    remediation: Bind a tested SSL profile that disables SSLv3, TLS 1.0, and TLS 1.1 while retaining protocols required by supported clients.
+    cves: []
+    references:
+      - https://docs.netscaler.com/en-us/citrix-adc/current-release/ssl/ssl-profiles
+    match_any:
+      - verbs: [add, set]
+        objects: ["ssl profile", "ssl parameter"]
+        option_values: {ssl3: [ENABLED]}
+      - verbs: [add, set]
+        objects: ["ssl profile", "ssl parameter"]
+        option_values: {tls1: [ENABLED]}
+      - verbs: [add, set]
+        objects: ["ssl profile", "ssl parameter"]
+        option_values: {tls11: [ENABLED]}
+    positive_tests: ["set ssl profile ns_default_ssl_profile_frontend -tls1 ENABLED"]
+    negative_tests: ["set ssl profile modern -tls1 DISABLED -tls12 ENABLED -tls13 ENABLED"]
+
+  - id: audit-loglevel-none
+    kind: weakness
+    severity: high
+    title: Audit logging level is disabled
+    rationale: A NONE audit log level can remove security-relevant evidence needed to investigate administrative and authentication activity.
+    remediation: Restore an approved audit log level and verify remote log delivery, retention, timestamps, and alerting.
+    cves: []
+    references:
+      - https://docs.netscaler.com/en-us/citrix-adc/current-release/system/audit-logging
+    match_any:
+      - verbs: [add, set]
+        object_prefixes: ["audit "]
+        option_values: {loglevel: [NONE]}
+    positive_tests: ["set audit syslogParams -logLevel NONE"]
+    negative_tests: ["set audit syslogParams -logLevel ALL"]
+
+  - id: gateway-page-script-injection
+    kind: forensic_observable
+    severity: critical
+    title: Rewrite or responder configuration contains browser script
+    rationale: Injected browser script in a rewrite or responder action can capture Gateway credentials or alter logon content. Legitimate customization is possible, so this observable requires file and change-history corroboration and does not prove exploitation.
+    remediation: Preserve the configuration and referenced content, identify the change origin, compare against an approved baseline, inspect Gateway page files and logs, and remove unauthorized actions only after evidence preservation.
+    cves: [CVE-2023-3519]
+    references:
+      - https://support.citrix.com/external/article/CTX561482
+      - https://cloud.google.com/blog/topics/threat-intelligence/mandiant-identifies-zero-day-citrix-gateway
+    match_any:
+      - verbs: [add, set]
+        objects: ["rewrite action", "responder action"]
+        line_regex: '(<script|javascript:|document\.|eval\(|atob\(|fromcharcode|onload=|xmlhttprequest)'
+    positive_tests: ['add rewrite action inject insert_before q{"<script src=/x.js></script>"}']
+    negative_tests: ['add responder action maintenance respondwith q{"Service unavailable"}']
+
+  - id: certificate-from-transient-path
+    kind: forensic_observable
+    severity: high
+    title: Certificate or key references a transient or web-content path
+    rationale: Certificate material loaded from a temporary directory or Gateway web-content tree is unusual and may represent staged tooling or persistence. It requires validation and does not by itself prove compromise.
+    remediation: Preserve and hash the referenced files, inspect ownership and timestamps, compare them with the approved certificate inventory, and rotate affected keys if unauthorized access is confirmed.
+    cves: [CVE-2023-3519]
+    references:
+      - https://support.citrix.com/external/article/CTX561482
+      - https://cloud.google.com/blog/topics/threat-intelligence/mikubot-citrix-zero-day
+    match_any:
+      - verbs: [add, set]
+        objects: ["ssl certkey"]
+        line_regex: '(?:^|\s)(?:/var/tmp|/tmp|/var/netscaler/logon|/netscaler/portal/templates)/'
+    positive_tests: ["add ssl certKey staged -cert /var/tmp/staged.pem -key /var/tmp/staged.key"]
+    negative_tests: ["add ssl certKey gateway -cert /nsconfig/ssl/gateway.pem -key /nsconfig/ssl/gateway.key"]
+
+  - id: remote-ns-extension-import
+    kind: forensic_observable
+    severity: high
+    title: NetScaler extension is imported from a remote URL
+    rationale: A remotely imported packet-engine extension introduces executable logic from outside the saved configuration. It may be administrative, so provenance and payload review are required; the command is not proof of exploitation.
+    remediation: Preserve the extension and configuration, verify its source and hash against change records, inspect the payload, and remove it if it is not explicitly authorized.
+    cves: []
+    references:
+      - https://docs.netscaler.com/en-us/citrix-adc/current-release/appexpert/ns-extensions
+    match_any:
+      - verbs: [import]
+        object_prefixes: ["ns extension"]
+        line_regex: '\bhttps?://'
+    positive_tests: ["import ns extension https://updates.example/ext.lua approved-ext"]
+    negative_tests: ["import ns extension /nsconfig/extensions/approved.lua approved-ext"]

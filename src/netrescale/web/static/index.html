@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>netrescale | Operations</title>
+  <script src="/static/theme.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/lucide.min.js" defer></script>
+  <script src="/static/admin.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div id="boot" class="boot"><span class="brand">netrescale</span><span class="muted">Connecting...</span></div>
+  <section id="auth-view" class="auth-layout" hidden>
+    <header class="auth-header"><span class="brand-mark"><i data-lucide="shield-check"></i></span><span class="brand">netrescale</span><span class="auth-label">OPERATIONS</span><button type="button" class="icon-button theme-toggle" data-theme-toggle title="Switch to dark mode" aria-label="Switch to dark mode"><i data-lucide="moon"></i></button></header>
+    <main class="auth-main">
+      <section class="auth-form-section">
+        <span class="eyebrow">OPERATOR ACCESS</span>
+        <h1>Sign in</h1>
+        <p class="muted auth-subtitle">netrescale Operations</p>
+        <div id="setup-message" class="notice warning" hidden>No web account has been created. Administrator setup is required.</div>
+        <form id="login-form">
+          <label for="username">Username</label>
+          <input id="username" name="username" autocomplete="username" maxlength="64" required>
+          <label for="password">Password</label>
+          <div class="password-field"><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" required><button id="show-password" type="button" class="icon-button" title="Show password" aria-label="Show password"><i data-lucide="eye"></i></button></div>
+          <p id="login-error" class="error-text" role="alert" hidden></p>
+          <button id="login-submit" class="primary-button" type="submit">Sign in <i data-lucide="arrow-right"></i></button>
+        </form>
+        <p class="auth-trust"><i data-lucide="lock-keyhole"></i>Authorized operators only</p>
+      </section>
+    </main>
+    <footer class="auth-footer">netrescale</footer>
+  </section>
+  <div id="application" hidden>
+    <button id="scrim" class="scrim" aria-label="Close navigation" hidden></button>
+    <aside id="sidebar" class="sidebar">
+      <a class="sidebar-brand" href="#overview"><span class="brand-mark"><i data-lucide="shield-check"></i></span><span class="brand">netrescale</span></a>
+      <p class="nav-section">MONITORING</p>
+      <nav aria-label="Main navigation">
+        <a href="#overview" data-view="overview"><i data-lucide="layout-dashboard"></i><span>Overview</span></a>
+        <a href="#findings" data-view="findings"><i data-lucide="shield-alert"></i><span>Findings</span><span id="nav-count" class="nav-count" hidden></span></a>
+        <a href="#detection" data-view="detection" data-roles="admin,operator"><i data-lucide="scan-search"></i><span>Detection</span></a>
+        <a href="#devices" data-view="devices"><i data-lucide="server"></i><span>Devices</span></a>
+        <a href="#health" data-view="health"><i data-lucide="heart-pulse"></i><span>Health</span></a>
+        <a href="#exposure" data-view="exposure"><i data-lucide="fingerprint"></i><span>Exposure</span></a>
+        <a href="#events" data-view="events"><i data-lucide="list-filter"></i><span>Audit log</span></a>
+        <a href="#configurations" data-view="configurations"><i data-lucide="file-diff"></i><span>Configuration</span></a>
+      </nav>
+      <p class="nav-section">WORKSPACE</p>
+      <nav aria-label="Workspace navigation">
+        <a href="#delivery" data-view="delivery"><i data-lucide="radio-tower"></i><span>Delivery</span></a>
+        <a href="#settings" data-view="settings"><i data-lucide="settings-2"></i><span>Settings</span></a>
+        <a href="#credentials" data-view="credentials" data-roles="admin"><i data-lucide="key-round"></i><span>Credentials</span></a>
+        <a href="#users" data-view="users" data-roles="admin"><i data-lucide="users-round"></i><span>Users</span></a>
+        <a href="#operations" data-view="operations" data-roles="admin,operator"><i data-lucide="wrench"></i><span>Operations</span></a>
+      </nav>
+      <div class="sidebar-bottom"><div class="local-workspace"><span class="workspace-symbol"><i data-lucide="network"></i></span><div><strong>Local workspace</strong><span id="fleet-count">Inventory unavailable</span></div></div><div class="user-row"><span class="user-avatar"><i data-lucide="user-round"></i></span><button id="account-open" class="account-button" title="My account"><span id="session-name">Operator</span></button><button id="logout" class="icon-button" title="Sign out" aria-label="Sign out"><i data-lucide="log-out"></i></button></div></div>
+    </aside>
+    <main class="workspace">
+      <header class="topbar"><button id="menu-toggle" class="icon-button mobile-only" title="Open navigation" aria-label="Open navigation"><i data-lucide="menu"></i></button><div class="breadcrumb"><span>Workspace</span><i data-lucide="chevron-right"></i><strong id="breadcrumb-title">Overview</strong></div><div class="topbar-actions"><span id="service-state" class="status-label"><span class="dot"></span>Checking</span><span class="topbar-divider"></span><span id="last-updated" class="updated-label">Not refreshed</span><button type="button" class="icon-button theme-toggle" data-theme-toggle title="Switch to dark mode" aria-label="Switch to dark mode"><i data-lucide="moon"></i></button><button id="refresh" class="icon-button" title="Refresh data" aria-label="Refresh data"><i data-lucide="refresh-cw"></i></button></div></header>
+      <div id="demo-banner" class="demo-banner" hidden><span><i data-lucide="flask-conical"></i>Preview workspace</span><span>Sample data &middot; no appliance connections</span></div>
+      <div id="device-activity" class="device-activity" role="status" hidden></div>
+      <div id="content" class="content" aria-live="polite"></div>
+    </main>
+  </div>
+  <dialog id="detail-dialog"><header class="dialog-header"><div><span id="detail-eyebrow" class="eyebrow">FINDING</span><h2 id="detail-title"></h2></div><button id="detail-close" class="icon-button" title="Close details" aria-label="Close details"><i data-lucide="x"></i></button></header><div id="detail-body" class="dialog-body"></div></dialog>
+  <dialog id="confirm-dialog" class="confirm-dialog"><header class="dialog-header"><h2>Send test notification?</h2><button id="confirm-close" class="icon-button" aria-label="Cancel"><i data-lucide="x"></i></button></header><p>The test will be queued for all configured notification channels.</p><div class="dialog-actions"><button id="confirm-cancel" class="secondary-button">Cancel</button><button id="confirm-send" class="primary-button"><i data-lucide="send"></i>Send test</button></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

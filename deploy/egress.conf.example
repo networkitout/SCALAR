@@ -1,0 +1,6 @@
+[Service]
+# Allow management IPs, SMTP, and SIEM/webhook destinations before starting.
+# Keep customization here so package upgrades do not replace it.
+#IPAddressAllow=10.0.0.0/24
+#IPAddressAllow=192.0.2.25/32
+#IPAddressAllow=192.0.2.40/32

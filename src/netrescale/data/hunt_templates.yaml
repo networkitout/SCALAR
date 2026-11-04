@@ -1,0 +1,236 @@
+version: 1
+source:
+  name: ctx697096_check.sh
+  version: '1.13'
+  author: Thomas Poppelgaard - Poppelgaard.com ApS
+  supplied_date: '2026-10-06'
+  provenance: 'Log-only adaptations of user-supplied ctx697096_check.sh v1.13 by Thomas Poppelgaard; community indicators and advisory mappings are not independently verified.'
+  coverage: 'Selected log-visible behaviors; not the full script or its complete IOC lists. No appliance script execution, memory/process inspection, filesystem sweep, partition checks, patch-date verdicts, or vulnerability assessment.'
+rules:
+  - id: custom-ctx-log-poisoning
+    title: Packet-engine message containing shell syntax
+    severity: high
+    sources: [nslog, notice, auth]
+    description: 'Potential log-poisoning attempt. A matching line alone does not establish execution.'
+    match:
+      raw_regex: '(?i)^(?!.*(?:shell_command=|CMD_EXECUTED.* - Command "(?:add|bind|set|unset|rm|unbind|show|save|enable|disable|apply|batch|stat|sync|clear|update|create|restore|import|export|switch) )).*(?:pitboss.*(?:NSPPE|PPE|packet.?engine).*(?:(?:;|%3b)(?!\s*restarting\b)|`|\$\(|&&|\|\||%60|%7c|%24%28|%26%26)|NSPPE(?:-\d+)?\s*(?:;|%3b)(?!\s*restarting\b)|missed too many heartbeats.*(?:;|%3b)(?!\s*restarting\b))'
+    cve: [CVE-2026-88771]
+    tests:
+      positive:
+        - {source: nslog, line: 'Oct 6 10:00:00 adc nsaaad: login failed for pitboss NSPPE-00;id; unexpectedly died'}
+        - {source: notice, line: 'pitboss packet engine %24%28id%29'}
+      negative:
+        - {source: notice, line: 'pitboss: PPE 1 missed too many heartbeats; restarting normally'}
+        - {source: nslog, line: 'CMD_EXECUTED - Command "add policy expression block_pattern pitboss NSPPE;id" - Status "Success"'}
+  - id: custom-ctx-login-shell-syntax
+    title: Shell syntax or encoded separators in a login request
+    severity: high
+    sources: [nslog, httpaccess, httpaccess-vpn, httperror]
+    description: 'Review the attempted command and correlate with shell audit evidence; this is an attempt indicator.'
+    match:
+      raw_regex: '(?i)^(?!.*(?:shell_command=|CMD_EXECUTED.* - Command "(?:add|bind|set|show|save) )).*(?:doAuthentication|/cgi/login|doLogon|samlauth|/saml/login|login|logon|user-agent|AAA).*(?:\$\{?IFS\}?|%24%7bIFS%7d|(?:[;|&]|%3b|%7c)\s*(?:curl|wget|fetch|sh|bash|perl|python|nc)\b)'
+    cve: [CVE-2026-88771]
+    tests:
+      positive:
+        - {source: nslog, line: 'Login rejected for user x;curl${IFS}http://example.invalid/sample'}
+        - {source: httpaccess, line: '198.51.100.5 "POST /cgi/login?name=x%3Bsh HTTP/1.1" 401 0'}
+      negative:
+        - {source: httpaccess, line: '198.51.100.5 "GET /cgi/login HTTP/1.1" 200 512 "Mozilla/5.0"'}
+        - {source: nslog, line: 'CMD_EXECUTED - Command "add policy expression reject_login login;sh" - Status "Success"'}
+  - id: custom-ctx-staged-user-agent
+    title: Tagged base64 content in an HTTP User-Agent
+    severity: medium
+    sources: [httpaccess, httpaccess-vpn, httperror]
+    description: 'Staging marker from the supplied script. Encoded content is treated as text and is never executed.'
+    match:
+      raw_regex: '"(?:INDEX:[A-Za-z0-9+/=]{8,}|[A-Za-z]{1,8}:[A-Za-z0-9+/]{40,}={0,2}#?)"'
+    tests:
+      positive:
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/index.html HTTP/1.1" 200 120 "INDEX:aGVsbG8gd29ybGQ="'}
+        - {source: httpaccess, line: '198.51.100.5 "GET / HTTP/1.1" 200 120 "K:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#"'}
+      negative:
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/index.html HTTP/1.1" 200 120 "Mozilla/5.0"'}
+  - id: custom-ctx-webshell-probe
+    title: Request for a reported Gateway webshell path
+    severity: medium
+    sources: [httpaccess, httpaccess-vpn, httperror]
+    description: 'A request, including a 404 response, can be a probe rather than proof a webshell exists.'
+    match:
+      raw_regex: '(?i)(?:/LogonPoint/[^\s"?]*\.receiver(?:[.\s"?]|$)|receiver(?:\.v\d+)?\.min(?:\.[0-9a-f]+)?\.css|LogonUISimple\.html\.style\.min|"(?:GET|POST|HEAD) /[^\s"]*nsconmsg(?:[\s"?]|$))'
+    tests:
+      positive:
+        - {source: httpaccess, line: '198.51.100.5 "GET /logon/LogonPoint/custom/.ctxs.receiver HTTP/1.1" 404 0'}
+        - {source: httpaccess-vpn, line: '198.51.100.5 "GET /nsconmsg HTTP/1.1" 200 8'}
+      negative:
+        - {source: httpaccess, line: '198.51.100.5 "GET /logon/LogonPoint/receiver.js HTTP/1.1" 200 500'}
+  - id: custom-ctx-config-archive-response
+    title: Successful response from a reported configuration-staging path
+    severity: high
+    sources: [httpaccess, httpaccess-vpn]
+    description: 'HTTP 200 on /vpn/c is a lead, not proof that the response contained configuration or keys.'
+    match:
+      raw_regex: '(?i)"(?:GET|HEAD|POST) /vpns?/c(?:[ ?][^"\r\n]*)?"\s+200\b'
+    tests:
+      positive:
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/c HTTP/1.1" 200 4000'}
+      negative:
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/c HTTP/1.1" 404 0'}
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/client.js HTTP/1.1" 200 4000'}
+  - id: custom-ctx-campaign-marker
+    title: Campaign probe or payload marker in a log
+    severity: medium
+    sources: [nslog, httpaccess, httpaccess-vpn, httperror]
+    description: 'Selected canary, staging, and scanner strings from the supplied script; not a complete IOC list.'
+    match:
+      raw_regex: '(?i)^(?!.*(?:shell_command=|CMD_EXECUTED.* - Command "(?:add|bind|set|show|save) )).*(?:c88771\.json|xua\.html|NX-CVE-OK|nx_verify\.html|/download/x\.sh|vp_probe_nonexist|scanner-probe|PoCbit|httpworkbench|/xd7h/)'
+    tests:
+      positive:
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/c88771.json HTTP/1.1" 404 0'}
+        - {source: nslog, line: 'Authentication rejected for scanner-probe'}
+      negative:
+        - {source: httpaccess, line: '198.51.100.5 "GET /vpn/index.html HTTP/1.1" 200 120'}
+        - {source: nslog, line: 'CMD_EXECUTED - Command "add policy patset scanner-probe" - Status "Success"'}
+  - id: custom-ctx-forced-log-processing
+    title: Manual invocation of the log-processing utility
+    severity: medium
+    sources: [bashlog, shlog, notice]
+    description: 'Confirm who invoked the utility and on which build. Support activity can match.'
+    match:
+      raw_regex: '(?i)^(?!.*\b(?:grep|zgrep|ctx697096_check|deyda-netscaler)\b).*ns_monuploadd_err\.pl\s+[^\r\n]*-WR\b'
+    tests:
+      positive:
+        - {source: shlog, line: 'Oct 6 10:00:00 adc sh: root: /netscaler/ns_monuploadd_err.pl -WR'}
+      negative:
+        - {source: shlog, line: 'Oct 6 10:00:00 adc sh: root: grep ns_monuploadd_err.pl -WR /var/log/sh.log'}
+  - id: custom-ctx-agent-bootstrap
+    title: Agent enrollment or bootstrap marker in shell history
+    severity: high
+    sources: [bashlog, shlog]
+    description: 'Review the operator and destination. No payload or enrollment token is executed by the hunt.'
+    match:
+      raw_regex: '(?i)^(?!.*\b(?:grep|zgrep|ctx697096_check)\b).*(?:/api/v1/install/|AGENT_TOKEN\s*=|PLATYPUS_INGRESS_CA|platypus-agent|plt_[a-z0-9]{12,}\.)'
+    tests:
+      positive:
+        - {source: bashlog, line: 'Oct 6 10:00:00 adc bash: root: fetch https://example.invalid/api/v1/install/test-marker'}
+      negative:
+        - {source: bashlog, line: 'Oct 6 10:00:00 adc bash: root: grep AGENT_TOKEN /var/log/bash.log'}
+  - id: custom-ctx-key-access
+    title: Sensitive key or directory-service access in shell history
+    severity: medium
+    sources: [bashlog, shlog]
+    description: 'Administrative maintenance can match; compare actor, time, and approved change records.'
+    match:
+      raw_regex: '(?i)\bldapsearch\b|LDAPTLS_REQCERT|/flash/nsconfig/keys|/\.F[12]\.key\b'
+    tests:
+      positive:
+        - {source: shlog, line: 'Oct 6 10:00:00 adc sh: root: cat /flash/nsconfig/keys/.F1.key'}
+      negative:
+        - {source: shlog, line: 'Oct 6 10:00:00 adc sh: root: show ns version'}
+  - id: custom-ctx-epa-noauth
+    title: EPA default group changed to NO_AUTH
+    severity: high
+    sources: [nslog]
+    events: [CMD_EXECUTED]
+    description: 'Successful configuration command matching a community persistence indicator. Validate the change.'
+    match:
+      fields:
+        Command: '(?i)^set authentication epaAction .* -defaultEPAGroup\s+"?NO_AUTH\b'
+        Status: '(?i)^Success'
+    tests:
+      positive:
+        - {source: nslog, line: '2026/10/06:10:00:00 GMT adc 0-PPE-0 : default GUI CMD_EXECUTED 1 0 : User admin - Command "set authentication epaAction scan -defaultEPAGroup NO_AUTH" - Status "Success"'}
+      negative:
+        - {source: nslog, line: '2026/10/06:10:00:00 GMT adc 0-PPE-0 : default GUI CMD_EXECUTED 1 0 : User admin - Command "set authentication epaAction scan -defaultEPAGroup NO_AUTH" - Status "ERROR"'}
+  - id: custom-ctx-named-management-account
+    title: Management account name from the supplied community indicators
+    severity: medium
+    sources: [nslog]
+    events: [CMD_EXECUTED]
+    description: 'The name sec_monitor can be legitimate; confirm the account and policy assignment.'
+    match:
+      fields:
+        Command: '(?i)^(?:add|bind) system user "?sec_monitor(?:"|\s|$)'
+        Status: '(?i)^Success'
+    tests:
+      positive:
+        - {source: nslog, line: '2026/10/06:10:00:00 GMT adc 0-PPE-0 : default GUI CMD_EXECUTED 1 0 : User admin - Command "bind system user sec_monitor superuser 100" - Status "Success"'}
+      negative:
+        - {source: nslog, line: '2026/10/06:10:00:00 GMT adc 0-PPE-0 : default GUI CMD_EXECUTED 1 0 : User admin - Command "bind system user nr_nitro readonly 100" - Status "Success"'}
+  - id: custom-ctx-auth-daemon-crash
+    title: Authentication-daemon crash signal
+    severity: medium
+    sources: [nslog, notice]
+    description: 'A crash is not proof of exploitation; correlate with SAML requests, support cases, and firmware.'
+    match:
+      raw_regex: '(?i)(?:\(nsaaad\).*exited on signal|proc nsaaad.*(?:SIGNALED|EXITED)|nsaaad unexpectedly died due to receiving signal|nsaaad.*maximum number of restarts)'
+    cve: [CVE-2026-88779]
+    tests:
+      positive:
+        - {source: notice, line: 'Oct 6 10:00:00 adc kernel: process 123 (nsaaad) exited on signal 11'}
+      negative:
+        - {source: notice, line: 'Oct 6 10:00:00 adc pitboss: nsaaad started normally'}
+  - id: custom-ctx-saml-request-probe
+    title: Unusual SAML request or probe User-Agent
+    severity: low
+    sources: [httpaccess, httpaccess-vpn]
+    description: 'Low-confidence hunting lead. Shared scanners and legitimate large SAML messages can match.'
+    match:
+      raw_regex: '(?i)"probe/1"|"(?:GET|POST|HEAD) /(?:saml/login|cgi/samlauth)[^\r\n]{2500,}'
+    cve: [CVE-2026-88779]
+    tests:
+      positive:
+        - {source: httpaccess, line: '198.51.100.5 "GET /saml/login HTTP/1.1" 400 0 "probe/1"'}
+      negative:
+        - {source: httpaccess, line: '198.51.100.5 "GET /saml/login HTTP/1.1" 200 100 "Mozilla/5.0"'}
+  - id: custom-ctx-dtls-crash
+    title: DTLS handshake failure or packet-engine crash
+    severity: medium
+    sources: [nslog, notice]
+    description: 'Operational faults can produce these messages; timing correlation is required.'
+    match:
+      raw_regex: '(?i)ClientVersion DTLSv1\.0.*Handshake failure-Internal Error|exit with orphan rings|NOT restarting NSPPE'
+    cve: [CVE-2026-88772]
+    tests:
+      positive:
+        - {source: nslog, line: 'ClientVersion DTLSv1.0 Handshake failure-Internal Error'}
+      negative:
+        - {source: nslog, line: 'ClientVersion DTLSv1.2 handshake completed'}
+  - id: custom-ctx-implant-log-marker
+    title: Reported implant marker referenced in logs
+    severity: high
+    sources: [bashlog, shlog, nslog, httpaccess, httperror]
+    description: 'A log mention does not prove the corresponding file or process exists.'
+    match:
+      raw_regex: '(?i)^(?!.*\b(?:grep|zgrep|ctx697096_check)\b).*(?:/\.nsmon/|nsmon\.pl|/\.slap/|slapshot\.py|whipd\.py|UXD_IDLE_EXIT|/var/core/\.ns-cache|/netscaler\.local/)'
+    tests:
+      positive:
+        - {source: shlog, line: 'Oct 6 10:00:00 adc sh: root: perl /var/tmp/.nsmon/nsmon.pl'}
+      negative:
+        - {source: shlog, line: 'Oct 6 10:00:00 adc sh: root: grep nsmon.pl /var/log/sh.log'}
+        - {source: nslog, line: 'nsmonitor health check completed'}
+  - id: custom-ctx-reported-address
+    title: Address from a selected community IOC seed list
+    severity: medium
+    sources: [nslog, httpaccess, httpaccess-vpn, httperror, notice, auth]
+    description: 'Selected addresses from the attachment, not its full list. An address match is not proof of compromise.'
+    match:
+      raw_regex: '(?i)^(?!.*(?:shell_command=|CMD_EXECUTED.* - Command "(?:add|bind|set|show|save) )).*(?<![0-9.])(?:149\.104\.78\.141|78\.128\.113\.10|138\.28\.234\.38|82\.167\.14\.7|143\.198\.7\.94|157\.254\.167\.12|213\.209\.159\.55|138\.199\.60\.5)(?![0-9.])'
+    tests:
+      positive:
+        - {source: httpaccess, line: '78.128.113.10 "GET /vpn/index.html HTTP/1.1" 200 100'}
+      negative:
+        - {source: httpaccess, line: '78.128.113.101 "GET /vpn/index.html HTTP/1.1" 200 100'}
+        - {source: nslog, line: 'CMD_EXECUTED - Command "add ns acl block -srcIP 78.128.113.10" - Status "Success"'}
+  - id: custom-ctx-domain-lead
+    title: Community-reported domain referenced in logs
+    severity: low
+    sources: [nslog, bashlog, shlog, httpaccess, httperror]
+    description: 'Includes shared services such as webhook.site. Review context and never block or declare compromise on this match alone.'
+    match:
+      raw_regex: '(?i)(?<![a-z0-9.-])(?:pylrk\.cc|oast\.fun|dnsl\.cc|gs\.thc\.org|echvista\.com|white-guard\.pro|gsocket\.io|webhook\.site|dnshook\.site)(?![a-z0-9.-])'
+    tests:
+      positive:
+        - {source: httpaccess, line: 'HTTP request contains https://pylrk.cc/example'}
+      negative:
+        - {source: httpaccess, line: 'HTTP request contains https://notpylrk.cc/example'}
+        - {source: httpaccess, line: 'HTTP request contains https://pylrk.cc.example.invalid/example'}

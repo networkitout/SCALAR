@@ -1,0 +1,9 @@
+# Normalize to LF in the repo and on checkout: these files run on Ubuntu, where a CRLF
+# shell script or systemd unit fails in confusing ways.
+* text=auto eol=lf
+*.sh text eol=lf
+*.service text eol=lf
+*.py text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
