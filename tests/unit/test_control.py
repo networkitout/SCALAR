@@ -33,6 +33,8 @@ async def test_local_control_roundtrip_and_error(tmp_path: Path) -> None:
 
 
 @requires_peercred
+@pytest.mark.skipif(
+    hasattr(os, "getuid") and os.getuid() == 0, reason="root peers are always trusted")
 @pytest.mark.linux
 async def test_control_rejects_wrong_peer_and_invalid_fields(tmp_path: Path) -> None:
     seen = []
