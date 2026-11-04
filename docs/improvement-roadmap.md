@@ -1,4 +1,4 @@
-# netrescale improvement roadmap
+# SCALAR improvement roadmap
 
 _Review date: 2026-10-13. Baseline: release 0.4.3 (commit b8f7979)._
 
@@ -117,7 +117,7 @@ Each item is high impact and roughly M effort. The order is the recommended buil
 **Config detection**
 - Credential-exfiltration channels: `HTTP.REQ.USER.PASSWD`/body reads in callouts, rewrite and message actions; HTTP callouts; AppFlow; responder htmlpage. *(config-credential-exfil-channels)*
 - Certificate content swaps, e.g. the SAML IdP signing cert. Compare `certkeydigest` from `GET sslcertkey`. *(config-certkey-content-drift)*
-- Effective-privilege graph for cmdPolicies. This replaces the `.*` heuristic, which false-positives on netrescale's own policy and misses `^shell` grants. *(config-cmdpolicy-privilege-graph)*
+- Effective-privilege graph for cmdPolicies. This replaces the `.*` heuristic, which false-positives on SCALAR's own policy and misses `^shell` grants. *(config-cmdpolicy-privilege-graph)*
 - Inventory outbound destinations (auth servers, syslog targets, callouts) and alert when one appears or changes. *(config-egress-trust-allowlist)*
 - Per-feature semantics for `enable ns feature`, so that disabling AppFw or Bot is visible. *(config-feature-list-semantics)*
 - Wire `config_intelligence.yaml` into one data-driven state engine. *(config-intelligence-unwired)*

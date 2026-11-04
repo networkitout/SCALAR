@@ -1,10 +1,10 @@
-# Sending netrescale findings to CrowdStrike NG-SIEM through Cribl
+# Sending SCALAR findings to CrowdStrike NG-SIEM through Cribl
 
-netrescale sends each finding as an RFC 5424 syslog message over TCP or TLS, framed with
+SCALAR sends each finding as an RFC 5424 syslog message over TCP or TLS, framed with
 RFC 6587 octet counting (newline-safe). The message body is ECS-style JSON (the default) or
 CEF.
 
-## netrescale side
+## SCALAR side
 
 ```yaml
 notify:
@@ -36,7 +36,7 @@ Add Cribl's IP to `IPAddressAllow=` in the systemd unit.
 
 ## Field map (JSON)
 
-| netrescale field | Meaning | Example |
+| SCALAR field | Meaning | Example |
 |---|---|---|
 | `@timestamp` | When the evidence was observed (UTC) | `2026-10-05T10:00:01+00:00` |
 | `message` | One-line summary | `NetScaler running configuration changed on ns-gw-01: 1 added` |

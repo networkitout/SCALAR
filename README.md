@@ -1,4 +1,8 @@
-# netrescale
+# SCALAR
+
+> The project is named **SCALAR**. The Python package, CLI command, systemd units and file
+> paths keep the original `netrescale` identifier (for example `sudo netrescale web user-set`,
+> `/etc/netrescale/config.yaml`), so existing installs and the commands below are unchanged.
 
 A self-hosted monitor for Citrix/NetScaler ADC and Gateway appliances, with an authenticated
 browser dashboard and an administrative CLI. It runs on an Ubuntu 24.04 server with management
@@ -17,7 +21,7 @@ access to the NetScalers, and it:
 - **notifies** by email, by webhook (generic JSON or Slack) and to a SIEM (RFC 5424 over
   TLS, ECS-style JSON or CEF; built for Cribl → CrowdStrike NG-SIEM).
 
-netrescale is **read-only toward the NetScalers**. The NITRO client refuses anything but
+SCALAR is **read-only toward the NetScalers**. The NITRO client refuses anything but
 GET (plus login/logout). Appliance setup is printed as commands for an admin to apply.
 
 ## Release 0.4.4: Browser Administration and Monitoring
@@ -328,7 +332,7 @@ Complete these gates in order:
    ```bash
    sudo netrescale device pin 10.0.0.10
    ```
-4. **Create the netrescale accounts and the syslog target on the NetScaler.** On HA pairs,
+4. **Create the SCALAR accounts and the syslog target on the NetScaler.** On HA pairs,
    apply the printed commands on the primary only:
    ```bash
    sudo netrescale snippets ns-gw-01 --server-ip <this-server-ip>

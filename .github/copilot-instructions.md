@@ -1,4 +1,4 @@
-# netrescale
+# SCALAR
 
 Self-hosted, **read-only** monitor for Citrix/NetScaler ADC/Gateway appliances: config-change
 alerting (risk-scored diffs, drift/tamper detection), firmware CVE exposure checks, IOC hunting

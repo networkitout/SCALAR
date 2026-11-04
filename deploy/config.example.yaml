@@ -1,4 +1,4 @@
-# netrescale configuration: copy to /etc/netrescale/config.yaml (root:netrescale 0640).
+# SCALAR configuration: copy to /etc/netrescale/config.yaml (root:netrescale 0640).
 # This file holds NO secrets. Credentials are referenced as local:<name> and stored in the
 # encrypted vault with `netrescale cred set <name>`.
 

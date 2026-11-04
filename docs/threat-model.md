@@ -1,4 +1,4 @@
-# netrescale threat model
+# SCALAR threat model
 
 ## What we protect
 
@@ -14,13 +14,13 @@
 
 ## Trust boundaries
 
-1. **NetScaler → netrescale.** The appliances may be compromised, which is the reason this
+1. **NetScaler → SCALAR.** The appliances may be compromised, which is the reason this
    tool exists. Everything they return is untrusted input: parsers never execute it, and
    log lines are matched with regexes and never evaluated.
-2. **netrescale → NetScaler.** netrescale is read-only: the NITRO client allows only GET and
+2. **SCALAR → NetScaler.** SCALAR is read-only: the NITRO client allows only GET and
    login/logout, and appliance changes are printed for a human to apply. TLS keys are
    pinned, so a man-in-the-middle can't collect credentials.
-3. **Root on the netrescale server.** Root is trusted. Without a TPM, root can unseal the
+3. **Root on the SCALAR server.** Root is trusted. Without a TPM, root can unseal the
    vault key and read every credential. This is the main residual risk; see below.
 4. **Outbound notifications.** Email, webhooks and the SIEM receive redacted diffs and
    findings, never secrets. Payloads are checked against the in-memory secret values before
@@ -54,7 +54,7 @@
 | Secrets leak through logs or alerts | `Credential` objects never print secrets. A redacting log filter runs on all output. Outbound payloads are checked before sending. CLI arguments never carry passwords |
 | Malicious config content (e.g. huge or odd quoting) | The tokenizer is bounded per line and rejects unterminated quotes. Diffs are capped in alerts |
 | Vault file tampering or corruption | AES-GCM authentication with AAD binding each entry to its name and key id. A key-check block detects a wrong key. Writes are atomic, with a `.bak` copy |
-| netrescale itself is exploited | Hardened systemd unit (no capabilities, `ProtectSystem=strict`, syscall filter, private users/tmp/devices, egress IP allowlist). Hash-pinned dependencies |
+| SCALAR itself is exploited | Hardened systemd unit (no capabilities, `ProtectSystem=strict`, syscall filter, private users/tmp/devices, egress IP allowlist). Hash-pinned dependencies |
 
 ## Known gaps (tracked in design.md)
 

@@ -1,4 +1,4 @@
-# Operating netrescale
+# Operating SCALAR
 
 ## Dashboard access
 
@@ -45,7 +45,7 @@ unit allows only local communication.
 rsyslog receives NetScaler syslog over **plain TCP** (`imtcp`, no TLS). Anyone on the network
 path can read or inject log lines, so the syslog network is part of the trust boundary:
 
-- Keep the NetScaler-to-netrescale syslog path on an isolated management network.
+- Keep the NetScaler-to-SCALAR syslog path on an isolated management network.
 - Apply the nftables rules from `netrescale rsyslog-config --nft`. Without them, any host that
   can reach 514/tcp can write to the quarantine file. `install.sh` installs a logrotate rule
   (`/etc/logrotate.d/netrescale-syslog`) that caps that file at 50 MB x 3, but it is a
@@ -148,7 +148,7 @@ be activated with `sudo systemctl restart netrescale netrescale-web`.
 
 ## File-integrity monitoring (opt-in per device)
 
-netrescale can watch the appliance filesystem through read-only NITRO `GET systemfile`
+SCALAR can watch the appliance filesystem through read-only NITRO `GET systemfile`
 (listing, and reading small files to hash them). It never writes and never uses SSH. It never
 requests file content under `/nsconfig/ssl`, `/nsconfig/keys`, `/flash/nsconfig/{ssl,keys}`,
 `/var/core` or `/var/crash`, for key-like file names (`ssh_host_*`, `id_rsa*` and similar,
@@ -449,7 +449,7 @@ while either saved or active configuration references an entry, including SMTP a
 Credential tests share the daemon's lockout guard. Verify a TLS fingerprint independently
 before confirming a pin inspection result, then apply the saved settings.
 
-**Vault restore:** upload only a trusted encrypted netrescale backup. Restore pauses collection,
+**Vault restore:** upload only a trusted encrypted SCALAR backup. Restore pauses collection,
 verifies entries, and re-encrypts under the existing host key; it does not replace the
 systemd-sealed master key. A `.bak` copy is retained. Review/test credentials and resume
 explicitly. Initial bootstrap and master-key rekey remain host-level maintenance tasks.

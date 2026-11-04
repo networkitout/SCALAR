@@ -15,6 +15,7 @@ Security hardening release. Behavior changes to review before upgrading:
 - Settings validation warns on HTTP dashboard, plain-TCP SIEM and SMTP without STARTTLS.
 - `install.sh` installs a logrotate rule bounding the syslog quarantine file.
 - Dependencies: certifi, opentelemetry-api and setuptools updated.
+- Documentation now uses the project name SCALAR; the `netrescale` package, command and paths are unchanged.
 - Project: MIT license, `SECURITY.md`, Dependabot, CI dependency/static/secret scanning.
 
 ## 0.4.3

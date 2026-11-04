@@ -1,4 +1,4 @@
-# netrescale: NetScaler log/telemetry collector, IOC detector and config-change monitor
+# SCALAR: NetScaler log/telemetry collector, IOC detector and config-change monitor
 
 ## Context
 This document is the full product roadmap. Release 0.4 adds role-based browser administration
@@ -9,7 +9,7 @@ host sweeps, telemetry, partitioned ingestion and the privileged control socket 
 
 This is a new project (it started from an empty repository).
 
-netrescale is a self-hosted service on an **Ubuntu 24.04 server with no TPM**. The server reaches a **medium/large NetScaler estate** (10+ ADC/Gateway appliances, HA pairs, 13.1/14.1, busy Gateways) over the management network. The service will:
+SCALAR is a self-hosted service on an **Ubuntu 24.04 server with no TPM**. The server reaches a **medium/large NetScaler estate** (10+ ADC/Gateway appliances, HA pairs, 13.1/14.1, busy Gateways) over the management network. The service will:
 1. **Collect and store logs and telemetry.** Logs arrive by syslog push and by scheduled SSH pull. Telemetry comes from NITRO.
 2. **Detect indicators of compromise** from four sources:
    - log rules
@@ -43,7 +43,7 @@ netrescale is a self-hosted service on an **Ubuntu 24.04 server with no TPM**. T
   - They never run concurrently on both nodes of a pair.
 - **The daemon is the only process holding secrets and the only writer.** The CLI is a thin client over a unix socket.
 - **The raw log archive is the system of record.** PostgreSQL holds the indexed security-relevant subset.
-- **Silence is a signal.** netrescale alerts when:
+- **Silence is a signal.** SCALAR alerts when:
   - a syslog feed goes quiet
   - a TLS or SSH pin changes
   - a change has no attribution
@@ -171,7 +171,7 @@ tests/    unit/, fixtures/{nsconf,nitro,nslog,sweep}/, rules/, integration/, emu
   - Checkpoints are `(fingerprint, offset)` per file, walking rotated `.N.gz`.
   - **A file that shrinks while keeping the same fingerprint raises a log-tampering finding.**
 - **Dedup across push and pull:** key on (node, boot_id, PPE, event, seq, sha256(body)), with `ON CONFLICT DO NOTHING`.
-- **Silence detection:** if NITRO shows a node as up but no syslog has arrived for N minutes, raise a high finding. netrescale's own NITRO login `CMD_EXECUTED` doubles as a heartbeat.
+- **Silence detection:** if NITRO shows a node as up but no syslog has arrived for N minutes, raise a high finding. SCALAR's own NITRO login `CMD_EXECUTED` doubles as a heartbeat.
 - **Archive:**
   - Daily zstd per node, kept 1 year, with an `archive_manifest` sha256 chain.
   - The daily chain head goes to the SIEM as an external anchor.
@@ -341,7 +341,7 @@ Minimum safe builds (every advisory above fixed): **14.1-73.46**, **13.1-64.29**
   - Target: `systemd-analyze security` < 2.0.
   - Test `MemoryDenyWriteExecute` with `cryptography` and `argon2-cffi` before enabling it.
   - Egress: there is no cloud secrets dependency, so `IPAddressDeny=any` with `IPAddressAllow=` covering only the NetScaler mgmt subnets, the SMTP relay, Cribl, localhost and DNS.
-- **Logging:** netrescale's own logs pass through a redacting filter.
+- **Logging:** SCALAR's own logs pass through a redacting filter.
 
 ## Milestones (each ends with something testable)
 - **M0 – Skeleton and emulator.**
