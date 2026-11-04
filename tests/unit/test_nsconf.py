@@ -2,10 +2,10 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from netrescale.detect.config_diff import diff_configs
-from netrescale.detect.config_risk import load_risk_rules
-from netrescale.detect.severity import Severity
-from netrescale.parse.nsconf import (
+from scalar.detect.config_diff import diff_configs
+from scalar.detect.config_risk import load_risk_rules
+from scalar.detect.severity import Severity
+from scalar.parse.nsconf import (
     NsConfParseError,
     config_lines,
     parse_command,
@@ -23,12 +23,12 @@ set ns config -IPAddress 10.0.0.10 -netmask 255.255.255.0
 set ns hostName ns-gw-01
 add HA node 1 10.0.0.11
 set ns rpcNode 10.0.0.10 -password 8a7f0c1d2e3b4a5f6e7d8c9b0a1f2e3d -encrypted -encryptmethod ENCMTHD_3 -kek -suffix 2026_01_01_00_00_00
-add system user nr_nitro 5b3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b -encrypted -hashmethod SHA512 -allowedManagementInterface API
+add system user sc_nitro 5b3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b -encrypted -hashmethod SHA512 -allowedManagementInterface API
 add authentication ldapAction ldap1 -serverIP 10.0.0.5 -ldapBase "dc=corp,dc=example" -ldapBindDn svc@corp -ldapBindDnPassword 0f1e2d3c4b5a69788796a5b4c3d2e1f0 -encrypted -encryptmethod ENCMTHD_3
 add snmp community s3cr3tcommunity ALL
 add lb vserver web_vs HTTP 10.0.1.10 80 -persistenceType NONE
 bind lb vserver web_vs web_svc1
-add audit syslogAction nr_syslog 10.0.0.50 -serverPort 514 -transport TCP -logLevel ALL
+add audit syslogAction sc_syslog 10.0.0.50 -serverPort 514 -transport TCP -logLevel ALL
 """
 
 
@@ -51,9 +51,9 @@ def test_unterminated_quote() -> None:
 
 
 def test_parse_command_structure() -> None:
-    c = parse_command("add system user nr_nitro HASH -encrypted -hashmethod SHA512")
+    c = parse_command("add system user sc_nitro HASH -encrypted -hashmethod SHA512")
     assert c is not None
-    assert (c.verb, c.object, c.name) == ("add", "system user", "nr_nitro")
+    assert (c.verb, c.object, c.name) == ("add", "system user", "sc_nitro")
     assert c.positional == ("HASH",)
     assert c.option("hashMethod") == ("SHA512",)
     assert c.option("encrypted") == ()
@@ -71,7 +71,7 @@ def test_redaction_hides_secrets_but_keeps_change_visible() -> None:
                    "0f1e2d3c4b5a69788796a5b4c3d2e1f0", "s3cr3tcommunity"]:
         assert secret not in red
     assert "<redacted:" in red
-    assert "nr_nitro" in red and "10.0.0.5" in red and "ENCMTHD_3" in red
+    assert "sc_nitro" in red and "10.0.0.5" in red and "ENCMTHD_3" in red
     # same secret -> same fingerprint; different secret -> different fingerprint
     a = redact_line("set ns rpcNode 1.1.1.1 -password aaaaaaaaaaaaaaaaaaaa -encrypted")
     b = redact_line("set ns rpcNode 1.1.1.1 -password aaaaaaaaaaaaaaaaaaaa -encrypted")
@@ -110,7 +110,7 @@ def test_password_change_detected_as_modified_without_leaking() -> None:
 
 
 def test_logging_removed_is_critical() -> None:
-    new = BASE.replace("add audit syslogAction nr_syslog 10.0.0.50 -serverPort 514 "
+    new = BASE.replace("add audit syslogAction sc_syslog 10.0.0.50 -serverPort 514 "
                        "-transport TCP -logLevel ALL\n", "")
     d = diff_configs(BASE, new, RULES)
     assert d.changes[0].op == "removed"

@@ -37,7 +37,7 @@ SCALAR is a self-hosted service on an **Ubuntu 24.04 server with no TPM**. The s
   - The NITRO client refuses everything except GET, login and logout.
   - SSH sweeps use a code-level allowlist of read-only FreeBSD commands. They never upload scripts.
   - Appliance setup (accounts, cmdPolicy, syslogAction, mgmt ACLs) is **printed as snippets** for an admin to apply.
-- **Safe-by-default on production.** A new device starts in `observe` mode, which allows only NITRO config polling and stats. SSH pulls and sweeps are enabled per device only after `netrescale probe <device>` passes.
+- **Safe-by-default on production.** A new device starts in `observe` mode, which allows only NITRO config polling and stats. SSH pulls and sweeps are enabled per device only after `scalar probe <device>` passes.
   - Sweeps are niced and time-boxed.
   - They run on the HA secondary first.
   - They never run concurrently on both nodes of a pair.
@@ -53,23 +53,23 @@ SCALAR is a self-hosted service on an **Ubuntu 24.04 server with no TPM**. The s
 
 ## Architecture
 ```
-NetScalers ──syslog TCP──▶ rsyslog (imtcp, disk queue) ──▶ /var/log/netrescale/syslog/<nsip>/YYYY-MM-DD.log
+NetScalers ──syslog TCP──▶ rsyslog (imtcp, disk queue) ──▶ /var/log/scalar/syslog/<nsip>/YYYY-MM-DD.log
    ▲  ▲                                                        │ tail (sha256(first 4KB)+offset checkpoints)
    │  └── SSH: persistent PTY shell, sentinel framing ◀── log puller / host sweeps
    └───── NITRO HTTPS: GET-only, SPKI-pinned, reused session ◀── config poller / telemetry / sessions
                                 │
-              netrescaled (one asyncio daemon, sandboxed systemd unit, sd_notify watchdog)
+              scalard (one asyncio daemon, sandboxed systemd unit, sd_notify watchdog)
    parse ─▶ rule stream ─▶ findings ─▶ notifications_outbox ─▶ SMTP | Cribl (syslog-TLS JSON/CEF or HTTP) | webhook
      ├─▶ raw archive (daily zstd per node + sha256 hash chain, 1y)
      └─▶ PostgreSQL 16 (indexed events 90d, config blobs, telemetry, findings, baselines)
-   /run/netrescale/control.sock ◀── `netrescale` CLI (SO_PEERCRED, group netrescale-admin, audited)
+   /run/scalar/control.sock ◀── `scalar` CLI (SO_PEERCRED, group scalar-admin, audited)
 ```
 
 ## Repository layout
 ```
 pyproject.toml  requirements.lock (pip-compile --generate-hashes)  README.md
-src/netrescale/
-  config.py            pydantic models for /etc/netrescale/config.yaml
+src/scalar/
+  config.py            pydantic models for /etc/scalar/config.yaml
   cli/                 Typer thin client + root-only offline cmds (bootstrap, db upgrade, vault rekey, restore)
   control/             JSON-lines RPC over unix socket, SO_PEERCRED authz, audit_log
   daemon/              supervisor, per-node loops (jitter, backoff, semaphore), observe/active modes
@@ -83,37 +83,37 @@ src/netrescale/
   store/               SQLAlchemy Core + Alembic, events_writer (COPY), archive, partitions
   notify/              router, outbox, smtp, siem (RFC5424/6587 TLS; JSON-ECS or CEF), webhook, redact
   data/                rules/*.yaml, config_risk.yaml, cve_builds.yaml, iocs/*.yaml, sweep_paths.yaml
-deploy/   install.sh, netrescale.service, tmpfiles.d, rsyslog template (generated), nftables, appliance-snippets/
+deploy/   install.sh, scalar.service, tmpfiles.d, rsyslog template (generated), nftables, appliance-snippets/
 docs/     operations.md, threat-model.md, appliance-setup.md, cribl-ngsiem.md
 tests/    unit/, fixtures/{nsconf,nitro,nslog,sweep}/, rules/, integration/, emulator/
 ```
 
 ## Credentials (encrypted local vault)
-- **Two NetScaler accounts per device.** `netrescale snippets <device>` prints the commands to create them.
-  - **`nr_nitro`:**
-    - Uses a custom `netrescale_ro` cmdPolicy. The built-in read-only policy can't run `show ns runningConfig`, `ns.conf` or `system user`.
+- **Two NetScaler accounts per device.** `scalar snippets <device>` prints the commands to create them.
+  - **`sc_nitro`:**
+    - Uses a custom `scalar_ro` cmdPolicy. The built-in read-only policy can't run `show ns runningConfig`, `ns.conf` or `system user`.
     - Allows `show`/`stat` and those objects. Denies `shell|save|set|add|rm|bind|unset|kill|reboot`.
     - `-allowedManagementInterface API`.
-  - **`nr_sweep`:**
+  - **`sc_sweep`:**
     - Superuser, because shell access requires it.
     - `-allowedManagementInterface CLI`.
     - Decrypted **just-in-time** for each sweep or pull, then dropped from memory.
   - Both accounts are limited to this server's IP by management ACL.
 - **Refs in config:**
-  - Format: `local:<name>`. Several devices can share one entry, for example a fleet-wide `nr_nitro`.
+  - Format: `local:<name>`. Several devices can share one entry, for example a fleet-wide `sc_nitro`.
   - The ref syntax and the `SecretProvider` protocol allow a later `bitwarden:` provider (Secrets Manager or the `bw` CLI) to be added without touching device config, but none is built in v1.
-- **Vault file** (`/var/lib/netrescale/vault`, mode 0600, owner `netrescale`):
+- **Vault file** (`/var/lib/scalar/vault`, mode 0600, owner `scalar`):
   - Versioned JSON: a header holding `format_version` and `key_id`, then one entry per name.
   - Each entry holds `nonce`, `ciphertext`, `created`, `updated` and `rotated_by`.
   - The plaintext value is JSON: `{"username","password","ssh_private_key"?}`.
   - Encryption: AES-256-GCM with a fresh 96-bit nonce on every write (`cryptography`). AAD is `nrv1|<key_id>|<name>`, so moving or renaming ciphertext fails authentication.
   - Writes are atomic: write a temp file, fsync it, then rename it into place. Keep the previous file as `vault.bak`.
 - **Master key:**
-  - 32 random bytes, generated by `netrescale bootstrap`.
-  - Sealed with `systemd-creds encrypt --with-key=host --name=netrescale.vault-key` into `/etc/credstore.encrypted/`. With no TPM, the host key is `/var/lib/systemd/credential.secret`, readable only by root.
+  - 32 random bytes, generated by `scalar bootstrap`.
+  - Sealed with `systemd-creds encrypt --with-key=host --name=scalar.vault-key` into `/etc/credstore.encrypted/`. With no TPM, the host key is `/var/lib/systemd/credential.secret`, readable only by root.
   - The unit loads it with `LoadCredentialEncrypted=`. The daemon reads it from `$CREDENTIALS_DIRECTORY`, which is ramfs readable only by the service, and holds it in memory only.
 - **Managing credentials:**
-  - Commands: `netrescale cred set|list|rm|test|rotate`.
+  - Commands: `scalar cred set|list|rm|test|rotate`.
   - Secrets are read with `getpass`, or `--stdin` for scripts, and **never taken as CLI arguments**.
   - They go to the daemon over the control socket. The daemon is the only process that ever decrypts.
   - `cred list` shows names, usernames, which devices use each entry, and age. Never passwords.
@@ -131,9 +131,9 @@ tests/    unit/, fixtures/{nsconf,nitro,nslog,sweep}/, rules/, integration/, emu
   - With no TPM, root on this server, or a full disk image that includes `/var/lib/systemd/credential.secret`, can recover every NetScaler credential.
   - Mitigations:
     - lock down root on this server
-    - least-privilege `nr_nitro`
+    - least-privilege `sc_nitro`
     - mgmt ACLs pinning both accounts to this server's IP
-    - `nr_sweep` decrypted only during sweeps
+    - `sc_sweep` decrypted only during sweeps
 
 ## Config-change monitoring (lands first; highest value)
 1. **Probe `GET /nitro/v1/config/nsconfig` every 60s.** It returns `lastconfigchangedtime`, `lastconfigsavetime` and `configchanged`. Fetch `nsrunningconfig` and `nssavedconfig` only when those values move, or every 6h as a safety net.
@@ -163,7 +163,7 @@ tests/    unit/, fixtures/{nsconf,nitro,nslog,sweep}/, rules/, integration/, emu
 
 ## Log collection and storage
 - **Push:**
-  - Snippet: `add audit syslogAction nr_syslog <server> -serverPort 514 -transport TCP -logLevel ALL -dateFormat YYYYMMDD -timeZone GMT_TIME -managementlog ALL` + policy + global bind. Whether `-managementlog` forwards shell and access logs is checked by the probe.
+  - Snippet: `add audit syslogAction sc_syslog <server> -serverPort 514 -transport TCP -logLevel ALL -dateFormat YYYYMMDD -timeZone GMT_TIME -managementlog ALL` + policy + global bind. Whether `-managementlog` forwards shell and access logs is checked by the probe.
   - rsyslog `imtcp` with a disk-assisted queue writes per-`$fromhost-ip` daily files. Unknown sources go to quarantine.
   - nftables allows 514/tcp only from inventory NSIPs and SNIPs.
 - **Pull** every 15 min over SSH. NITRO `systemfile` is capped at 32 MB from 13.1-56, so it isn't used.
@@ -175,7 +175,7 @@ tests/    unit/, fixtures/{nsconf,nitro,nslog,sweep}/, rules/, integration/, emu
 - **Archive:**
   - Daily zstd per node, kept 1 year, with an `archive_manifest` sha256 chain.
   - The daily chain head goes to the SIEM as an external anchor.
-  - `netrescale search` greps the archive by time range.
+  - `scalar search` greps the archive by time range.
   - `status` reports daily volume per node and the projected 1-year disk footprint, so the archive volume can be sized during M3.
 - **PostgreSQL contents (90d, daily partitions):**
   - Security-relevant event classes: CMD_EXECUTED, UI/AAA login success and fail, auth rejects, shell commands, HA/EVENT, nsppe/pitboss/core, SSL/cert.
@@ -208,7 +208,7 @@ tests/    unit/, fixtures/{nsconf,nitro,nslog,sweep}/, rules/, integration/, emu
 | 2026-88779 | CTX697174 | 73.41 | 64.28 | 37.282 | SAML SP or IdP |
 | 2026-107406 | CTX697191 | 73.46 | 64.29 | 37.283 | SAML SP or IdP |
 
-Minimum safe builds (every advisory above fixed): **14.1-73.46**, **13.1-64.29**, **13.1-FIPS/NDcPP 37.283**. `src/netrescale/data/cve_builds.yaml` is the source of truth; this table is a summary.
+Minimum safe builds (every advisory above fixed): **14.1-73.46**, **13.1-64.29**, **13.1-FIPS/NDcPP 37.283**. `src/scalar/data/cve_builds.yaml` is the source of truth; this table is a summary.
 
 **Log rules** (YAML; each rule must carry positive and negative test vectors):
 - **CVE-2025-5777:** `AAA Message … Authentication is rejected for` containing bytes `\x80-\xff`.
@@ -329,15 +329,15 @@ Minimum safe builds (every advisory above fixed): **14.1-73.46**, **13.1-64.29**
 
 ## Hardening and deployment
 - **Install (`install.sh`):**
-  - Creates the `netrescale` user and the `netrescale-admin` group.
-  - Builds a venv in `/opt/netrescale` from hash-pinned dependencies.
+  - Creates the `scalar` user and the `scalar-admin` group.
+  - Builds a venv in `/opt/scalar` from hash-pinned dependencies.
   - Sets up PostgreSQL 16 on a local socket with peer auth.
   - Installs the rsyslog drop-in, the nftables rules and the tmpfiles entry.
 - **systemd unit:**
-  - `ProtectSystem=strict`, `ReadWritePaths=/var/lib/netrescale /var/log/netrescale`
+  - `ProtectSystem=strict`, `ReadWritePaths=/var/lib/scalar /var/log/scalar`
   - `NoNewPrivileges`, empty `CapabilityBoundingSet`, `PrivateTmp`
   - `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`
-  - `LoadCredentialEncrypted=netrescale.vault-key`, `WatchdogSec=`
+  - `LoadCredentialEncrypted=scalar.vault-key`, `WatchdogSec=`
   - Target: `systemd-analyze security` < 2.0.
   - Test `MemoryDenyWriteExecute` with `cryptography` and `argon2-cffi` before enabling it.
   - Egress: there is no cloud secrets dependency, so `IPAddressDeny=any` with `IPAddressAllow=` covering only the NetScaler mgmt subnets, the SMTP relay, Cribl, localhost and DNS.
@@ -349,7 +349,7 @@ Minimum safe builds (every advisory above fixed): **14.1-73.46**, **13.1-64.29**
   - **NetScaler emulator for tests:**
     - respx serving NITRO JSON, including errorcodes 354/444.
     - An asyncssh server with the CLI prompt, ` Done`, `shell`, FreeBSD output and rotating logs over SFTP.
-  - `netrescale probe`, strictly read-only. It reports:
+  - `scalar probe`, strictly read-only. It reports:
     - SSH exec vs PTY behavior
     - SFTP availability for non-nsroot superusers
     - cmdPolicy endpoint coverage

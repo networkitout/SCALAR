@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from netrescale.store.archive import ArchiveIntegrityError, RawArchive
+from scalar.store.archive import ArchiveIntegrityError, RawArchive
 
 NOW = datetime(2026, 10, 5, tzinfo=UTC)
 

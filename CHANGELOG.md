@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0
+
+**Renamed from netrescale to SCALAR (breaking).** Install fresh; there is no in-place upgrade.
+Package and CLI are `scalar`; service user/group `scalar` and `scalar-admin`; paths
+`/etc/scalar`, `/var/lib/scalar`, `/var/log/scalar`, `/opt/scalar`; units `scalar.service` and
+`scalar-web.service`; database `scalar`; environment variables `SCALAR_*`; appliance-side
+account names `sc_nitro`, `sc_fim`, `sc_sweep`, `sc_syslog`. The vault/escrow file format is
+unchanged apart from the renamed credential store file `scalar.vault-key`.
+
 ## 0.4.4
 
 Security hardening release. Behavior changes to review before upgrading:
@@ -15,7 +24,7 @@ Security hardening release. Behavior changes to review before upgrading:
 - Settings validation warns on HTTP dashboard, plain-TCP SIEM and SMTP without STARTTLS.
 - `install.sh` installs a logrotate rule bounding the syslog quarantine file.
 - Dependencies: certifi, opentelemetry-api and setuptools updated.
-- Documentation now uses the project name SCALAR; the `netrescale` package, command and paths are unchanged.
+- Documentation uses the project name SCALAR.
 - Project: MIT license, `SECURITY.md`, Dependabot, CI dependency/static/secret scanning.
 
 ## 0.4.3

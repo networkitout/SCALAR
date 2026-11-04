@@ -1,9 +1,9 @@
 """A small stateful NITRO emulator served through httpx.MockTransport.
 
-It mirrors the parts of NITRO that netrescale uses: login/logout with a NITRO_AUTH_TOKEN
+It mirrors the parts of NITRO that scalar uses: login/logout with a NITRO_AUTH_TOKEN
 cookie, session expiry (errorcode 444), bad credentials (errorcode 354, HTTP 401),
 command-policy denials (HTTP 403), and the config/stat resources the collectors read.
-Real response shapes get re-checked against `netrescale probe` output from production.
+Real response shapes get re-checked against `scalar probe` output from production.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ import httpx
 
 @dataclass
 class FakeNitro:
-    users: dict[str, str] = field(default_factory=lambda: {"nr_nitro": "nitro-password"})
+    users: dict[str, str] = field(default_factory=lambda: {"sc_nitro": "nitro-password"})
     version: str = "NetScaler NS14.1: Build 73.37.nc, Date: Sep 20 2026, 10:00:00   (64-bit)"
     running: str = "#NS14.1 Build 73.37\nset ns hostName ns-gw-01\n"
     saved: str = "#NS14.1 Build 73.37\nset ns hostName ns-gw-01\n"

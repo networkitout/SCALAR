@@ -8,13 +8,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from netrescale.config import Config
-from netrescale.detect.findings import Finding
-from netrescale.detect.severity import Severity
-from netrescale.store.database import Database
-from netrescale.store.snapshots import FileSnapshotStore
-from netrescale.web.app import COOKIE, create_app
-from netrescale.web.auth import (
+from scalar.config import Config
+from scalar.detect.findings import Finding
+from scalar.detect.severity import Severity
+from scalar.store.database import Database
+from scalar.store.snapshots import FileSnapshotStore
+from scalar.web.app import COOKIE, create_app
+from scalar.web.auth import (
     AuthenticationError,
     AuthStore,
     LoginThrottled,
@@ -32,8 +32,8 @@ PASSWORD = "a-long-test-only-password"
 def test_http_setup_preserves_config_and_limits_network_permissions(tmp_path: Path) -> None:
     import yaml
 
-    from netrescale.config import load_config
-    from netrescale.web.server import configure_http
+    from scalar.config import load_config
+    from scalar.web.server import configure_http
 
     path = tmp_path / "config.yaml"
     cfg = Config.model_validate({"devices": [{"name": "gateway", "nsip": "192.0.2.10",
@@ -62,7 +62,7 @@ def test_http_setup_preserves_config_and_limits_network_permissions(tmp_path: Pa
 ])
 def test_invalid_http_setup_does_not_write_files(tmp_path: Path, host: str,
                                                 networks: list[str]) -> None:
-    from netrescale.web.server import configure_http
+    from scalar.web.server import configure_http
 
     path = tmp_path / "config.yaml"
     path.write_text("{}\n")
@@ -74,7 +74,7 @@ def test_invalid_http_setup_does_not_write_files(tmp_path: Path, host: str,
 
 
 def test_http_setup_does_not_overwrite_an_unmanaged_dropin(tmp_path: Path) -> None:
-    from netrescale.web.server import configure_http
+    from scalar.web.server import configure_http
 
     path = tmp_path / "config.yaml"
     path.write_text("{}\n")
@@ -248,7 +248,7 @@ def test_server_settings_reload_session_policy(web, monkeypatch: pytest.MonkeyPa
     import uvicorn
     import yaml
 
-    from netrescale.web import server as web_server
+    from scalar.web import server as web_server
 
     _client, cfg, database = web
     config_path = cfg.paths.state_dir / "config.yaml"
@@ -337,7 +337,7 @@ def test_inflight_request_keeps_its_configuration_snapshot(web, monkeypatch) -> 
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event
 
-    from netrescale.web.data import WebData
+    from scalar.web.data import WebData
 
     client, cfg, _database = web
     sign_in(client)
@@ -443,12 +443,12 @@ def test_csrf_origin_and_logout_revocation(web) -> None:  # type: ignore[no-unty
         == 403
     )
     headers = sign_in(client)
-    old_cookie = client.cookies.get("netrescale_session")
+    old_cookie = client.cookies.get("scalar_session")
     assert client.post("/api/delivery/test", json={}).status_code == 403
     assert client.post("/api/delivery/test", json={}, headers=headers).status_code == 200
     assert database.counts()["pending_notifications"] == 1
     assert client.post("/api/logout", json={}, headers=headers).status_code == 200
-    client.cookies.set("netrescale_session", old_cookie)
+    client.cookies.set("scalar_session", old_cookie)
     assert client.get("/api/session").status_code == 401
 
 
@@ -493,7 +493,7 @@ def test_configuration_unified_diff_and_selected_baseline(web) -> None:  # type:
 
 
 def test_health_details_include_diagnostics_and_statistics(web) -> None:  # type: ignore[no-untyped-def]
-    from netrescale.redact import registry
+    from scalar.redact import registry
 
     client, cfg, _database = web
     registry.register("private-health-secret")
@@ -522,7 +522,7 @@ def test_health_details_include_diagnostics_and_statistics(web) -> None:  # type
 
 
 def test_exposure_coverage_and_sink_health_reach_the_browser(web) -> None:  # type: ignore[no-untyped-def]
-    from netrescale.redact import registry
+    from scalar.redact import registry
 
     client, cfg, database = web
     registry.register("private-relay-secret")
@@ -621,7 +621,7 @@ def test_host_and_transport_safety(web) -> None:  # type: ignore[no-untyped-def]
 
 
 def test_packaged_ui_and_preview_are_isolated() -> None:
-    from netrescale.web.demo import preview_app
+    from scalar.web.demo import preview_app
 
     app = preview_app()
     with TestClient(app, base_url="http://localhost") as client:
@@ -775,7 +775,7 @@ def test_administration_requires_recent_authentication(web,
     import time
     from types import SimpleNamespace
 
-    from netrescale.web import app as app_module
+    from scalar.web import app as app_module
 
     client, _cfg, _database = web
     headers = sign_in(client)

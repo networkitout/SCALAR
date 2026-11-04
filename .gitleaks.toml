@@ -1,4 +1,4 @@
-title = "netrescale gitleaks config"
+title = "scalar gitleaks config"
 
 [extend]
 useDefault = true

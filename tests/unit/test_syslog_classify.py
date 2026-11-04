@@ -10,8 +10,8 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from netrescale.detect.rules import ListMatcher, LogRule, RuleEngine, load_rules, parse_rule
-from netrescale.parse.nslog import (
+from scalar.detect.rules import ListMatcher, LogRule, RuleEngine, load_rules, parse_rule
+from scalar.parse.nslog import (
     INJECTION_FIELD,
     SYSLOG_TAGS,
     LogEvent,
@@ -26,10 +26,10 @@ from netrescale.parse.nslog import (
 RULES = load_rules()
 LISTS = {
     "admin_networks": ListMatcher(["10.0.0.0/8"]),
-    "admin_users": ListMatcher(["admin1", "nsroot", "nr_nitro"]),
+    "admin_users": ListMatcher(["admin1", "nsroot", "sc_nitro"]),
 }
 SOURCES = set(get_args(SyslogSource))
-ENVELOPE = "2026-10-05T10:00:01.123456+00:00 10.0.0.10 "  # rsyslog.py NetrescaleLine
+ENVELOPE = "2026-10-05T10:00:01.123456+00:00 10.0.0.10 "  # rsyslog.py ScalarLine
 ONBOX = re.compile(r"^(?P<ts>[A-Z][a-z]{2} +\d{1,2} \d{2}:\d{2}:\d{2}) <[^>]+> (?P<host>\S+) "
                    r"(?P<rest>.*)$")
 TAGGED = re.compile(r"^(?P<tag>[\w-]+)(?:\[(?P<pid>\d+)\])?: (?P<body>.*)$")

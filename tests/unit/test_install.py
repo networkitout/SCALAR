@@ -7,14 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from netrescale import __version__
+from scalar import __version__
 
 INSTALLER = Path(__file__).parents[2] / "deploy" / "install.sh"
 
 
 def test_appliance_egress_is_limited_to_configured_management_addresses(tmp_path: Path) -> None:
-    from netrescale.appliance import allow_appliance_network
-    from netrescale.config import Config, Device
+    from scalar.appliance import allow_appliance_network
+    from scalar.config import Config, Device
 
     cfg = Config(devices=[Device(name="one", nsip="192.0.2.10", syslog_sources=["198.51.100.4"]),
                           Device(name="two", nsip="2001:db8::10")])
@@ -30,8 +30,8 @@ def test_appliance_egress_is_limited_to_configured_management_addresses(tmp_path
 
 
 def test_appliance_egress_preserves_unmanaged_files_and_rejects_empty_inventory(tmp_path: Path) -> None:
-    from netrescale.appliance import allow_appliance_network
-    from netrescale.config import Config, Device
+    from scalar.appliance import allow_appliance_network
+    from scalar.config import Config, Device
 
     path = tmp_path / "custom.conf"
     path.write_text("[Service]\nMemoryMax=1G\n")
@@ -45,8 +45,8 @@ def test_appliance_egress_preserves_unmanaged_files_and_rejects_empty_inventory(
 
 @pytest.mark.parametrize("address", ["fe80::1%eth0", "fe80::1%eth0\nIPAddressDeny="])
 def test_appliance_egress_rejects_scoped_addresses(tmp_path: Path, address: str) -> None:
-    from netrescale.appliance import allow_appliance_network
-    from netrescale.config import Config, Device
+    from scalar.appliance import allow_appliance_network
+    from scalar.config import Config, Device
 
     path = tmp_path / "egress.conf"
     with pytest.raises(ValueError):
@@ -77,30 +77,30 @@ def test_installer_readme_copy(tmp_path: Path, same_directory: bool) -> None:
 
 def test_web_unit_has_no_vault_credential_and_is_local_only() -> None:
     config = ConfigParser(interpolation=None)
-    config.read(INSTALLER.parent / "netrescale-web.service")
+    config.read(INSTALLER.parent / "scalar-web.service")
     service = config["Service"]
-    assert service["User"] == "netrescale"
+    assert service["User"] == "scalar"
     assert service["IPAddressDeny"] == "any"
     assert service["IPAddressAllow"] == "localhost"
     assert "LoadCredentialEncrypted" not in service
-    assert "/var/lib/netrescale/vault" in service["InaccessiblePaths"]
+    assert "/var/lib/scalar/vault" in service["InaccessiblePaths"]
     assert service["ExecStart"].endswith("web serve")
 
 
 def test_only_monitoring_unit_can_write_application_settings() -> None:
     monitor = ConfigParser(interpolation=None, strict=False)
-    monitor.read(INSTALLER.parent / "netrescale.service")
-    assert monitor["Service"]["ReadWritePaths"] == "/etc/netrescale"
+    monitor.read(INSTALLER.parent / "scalar.service")
+    assert monitor["Service"]["ReadWritePaths"] == "/etc/scalar"
     web = ConfigParser(interpolation=None)
-    web.read(INSTALLER.parent / "netrescale-web.service")
-    assert "/etc/netrescale" in web["Service"]["ReadOnlyPaths"]
+    web.read(INSTALLER.parent / "scalar-web.service")
+    assert "/etc/scalar" in web["Service"]["ReadOnlyPaths"]
     assert "ReadWritePaths" not in web["Service"]
 
 
 @pytest.mark.linux
 def test_installer_repairs_application_access_without_exposing_state(tmp_path: Path) -> None:
     prefix = tmp_path / "application"
-    executable = prefix / "venv" / "bin" / "netrescale"
+    executable = prefix / "venv" / "bin" / "scalar"
     module = prefix / "venv" / "lib" / "module.py"
     executable.parent.mkdir(parents=True)
     module.parent.mkdir()
@@ -142,7 +142,7 @@ def test_installer_verifies_installed_web_cli(tmp_path: Path, installed_version:
     helpers = """
 die() { printf '%s\\n' "$*" >&2; exit 1; }
 runuser() {
-    [[ "$1" == "-u" && "$2" == "netrescale" && "$3" == "--" ]] || return 1
+    [[ "$1" == "-u" && "$2" == "scalar" && "$3" == "--" ]] || return 1
     case "${*: -1}" in
         version) printf '%s\\n' "$TEST_VERSION" ;;
         --help) [[ "$TEST_WEB" == "yes" ]] ;;
@@ -153,14 +153,14 @@ runuser() {
 }
 systemd-analyze() { return 0; }
 """
-    config_dir = tmp_path / "etc" / "netrescale"
+    config_dir = tmp_path / "etc" / "scalar"
     systemd_dir = tmp_path / "etc" / "systemd" / "system"
     config_dir.mkdir(parents=True)
     systemd_dir.mkdir(parents=True)
     (config_dir / "config.yaml").write_text("devices: []\n")
-    (systemd_dir / "netrescale.service").write_text("[Service]\n")
-    (systemd_dir / "netrescale-web.service").write_text("[Service]\n")
-    block = block.replace("/etc/netrescale", str(config_dir))
+    (systemd_dir / "scalar.service").write_text("[Service]\n")
+    (systemd_dir / "scalar-web.service").write_text("[Service]\n")
+    block = block.replace("/etc/scalar", str(config_dir))
     block = block.replace("/etc/systemd/system", str(systemd_dir))
     result = subprocess.run(["bash", "-eu"], input=helpers + block, text=True,
                             capture_output=True, check=False,

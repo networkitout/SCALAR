@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
-from netrescale.collect.config_poller import ConfigPoller
-from netrescale.detect.config_risk import load_risk_rules
-from netrescale.detect.findings import AuditStatus
-from netrescale.detect.severity import Severity
-from netrescale.secrets.base import Credential
-from netrescale.store.snapshots import FileSnapshotStore
-from netrescale.transport.nitro import NitroClient, NitroTarget
+from scalar.collect.config_poller import ConfigPoller
+from scalar.detect.config_risk import load_risk_rules
+from scalar.detect.findings import AuditStatus
+from scalar.detect.severity import Severity
+from scalar.secrets.base import Credential
+from scalar.store.snapshots import FileSnapshotStore
+from scalar.transport.nitro import NitroClient, NitroTarget
 from tests.emulator.nitro import FakeNitro
 
 BASE = ("#NS14.1 Build 73.37\n# Last modified by `save config`, Mon Oct  5 10:00:00 2026\n"
@@ -29,7 +29,7 @@ def poller(tmp_path: Path) -> ConfigPoller:
 
 def client(fake: FakeNitro) -> NitroClient:
     return NitroClient(NitroTarget("ns-gw-01", "x", spki_pin="p"),
-                       lambda: Credential("nr_nitro", "nitro-password"),
+                       lambda: Credential("sc_nitro", "nitro-password"),
                        transport=fake.transport())
 
 

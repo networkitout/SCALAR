@@ -2,13 +2,13 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from netrescale.detect.config_forensics import analyze_config
-from netrescale.detect.severity import Severity
+from scalar.detect.config_forensics import analyze_config
+from scalar.detect.severity import Severity
 
 SAFE = """\
 set ns hostName ns-gw-01
 set ns ip 10.0.0.10 -mgmtAccess ENABLED -ssh ENABLED -gui ENABLED -telnet DISABLED
-add system user nr_nitro 0123456789abcdef0123456789abcdef -encrypted -hashmethod SHA512 -allowedManagementInterface API
+add system user sc_nitro 0123456789abcdef0123456789abcdef -encrypted -hashmethod SHA512 -allowedManagementInterface API
 add audit syslogAction central 10.0.0.50 -serverPort 6514 -transport TCP -logLevel ALL
 add ntp server 10.0.0.20
 set ssl parameter -ssl3 DISABLED -tls1 DISABLED -tls11 DISABLED -tls12 ENABLED

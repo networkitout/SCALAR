@@ -4,13 +4,13 @@
 
 | Asset | Where | Why it matters |
 |---|---|---|
-| NetScaler credentials (`nr_nitro`, `nr_sweep`) | `/var/lib/netrescale/vault` (AES-256-GCM) | `nr_sweep` is a superuser on every appliance |
-| Vault master key | `/etc/credstore.encrypted/netrescale.vault-key` (systemd-creds, host key) | It decrypts the vault |
+| NetScaler credentials (`sc_nitro`, `sc_sweep`) | `/var/lib/scalar/vault` (AES-256-GCM) | `sc_sweep` is a superuser on every appliance |
+| Vault master key | `/etc/credstore.encrypted/scalar.vault-key` (systemd-creds, host key) | It decrypts the vault |
 | Escrow / backup files | Offline (operator's custody) | With the passphrase, they recover the vault on any host |
-| Config history | `/var/lib/netrescale/configs` (raw, 0600) | Forensic record. Contains NetScaler-encrypted secrets and password hashes |
+| Config history | `/var/lib/scalar/configs` (raw, 0600) | Forensic record. Contains NetScaler-encrypted secrets and password hashes |
 | Findings | PostgreSQL findings/outbox, SIEM, email | Incident evidence |
-| Raw syslog | `/var/lib/netrescale/archive`, daily zstd frames and manifests | Unredacted forensic data; treat backups as sensitive |
-| Web login hashes | `/var/lib/netrescale/web-users.json` (Argon2id, 0600) | Authorizes browser access to monitoring evidence |
+| Raw syslog | `/var/lib/scalar/archive`, daily zstd frames and manifests | Unredacted forensic data; treat backups as sensitive |
+| Web login hashes | `/var/lib/scalar/web-users.json` (Argon2id, 0600) | Authorizes browser access to monitoring evidence |
 
 ## Trust boundaries
 
@@ -44,7 +44,7 @@
 
 | Threat | Mitigation |
 |---|---|
-| Server compromise (root) exposes every NetScaler credential | Harden and monitor this server. `nr_nitro` is least-privilege (show/stat only). Restrict NSIP management access by ACL. Rotate credentials (`cred rotate`; an age finding fires after 90 days). Revisit when a TPM is available (`--with-key=host+tpm2`) |
+| Server compromise (root) exposes every NetScaler credential | Harden and monitor this server. `sc_nitro` is least-privilege (show/stat only). Restrict NSIP management access by ACL. Rotate credentials (`cred rotate`; an age finding fires after 90 days). Revisit when a TPM is available (`--with-key=host+tpm2`) |
 | Stolen disk or backup of the server | The vault is useless without `/var/lib/systemd/credential.secret`. A full disk image includes it, so treat server backups as sensitive |
 | Lost server, no recovery path | Passphrase escrow file and `vault backup`/`restore`. Test the restore on a VM |
 | Credential spraying locks out NetScaler accounts | Lockout guard: one rejection blocks that credential on that device until it is rotated |
@@ -59,7 +59,7 @@
 ## Known gaps (tracked in design.md)
 
 - **NetScaler formats:** log line formats and some NITRO response shapes come from
-   documentation and public research. `netrescale probe` confirms read-only NITRO access,
+   documentation and public research. `scalar probe` confirms read-only NITRO access,
    not all log formats. Inspect actual archived events on one production HA secondary
    before expanding the rollout.
 - **Local trust:** PostgreSQL peer authentication and the local control socket trust the

@@ -3,8 +3,8 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "netrescale"
-version = "0.4.4"
+name = "scalar"
+version = "0.5.0"
 description = "NetScaler log/telemetry collector, IOC detector and config-change monitor"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -40,13 +40,13 @@ dev = [
 ]
 
 [project.scripts]
-netrescale = "netrescale.cli.main:app"
+scalar = "scalar.cli.main:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-netrescale = ["data/*.yaml", "data/rules/*.yaml", "data/iocs/*.yaml", "web/static/*"]
+scalar = ["data/*.yaml", "data/rules/*.yaml", "data/iocs/*.yaml", "web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -67,7 +67,7 @@ select = ["E", "F", "W", "I", "B", "BLE", "UP", "S", "SIM", "RUF"]
 ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.isort]
-known-first-party = ["netrescale", "tests"]
+known-first-party = ["scalar", "tests"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["datetime.timedelta"]
@@ -76,11 +76,11 @@ extend-immutable-calls = ["datetime.timedelta"]
 # test vectors are real log/config lines and can't be wrapped
 "tests/**" = ["S", "B", "E501"]
 # printed NetScaler CLI commands must stay on one line
-"src/netrescale/appliance.py" = ["E501"]
+"src/scalar/appliance.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 platform = "linux"  # deployment target, even when developing on Windows
 strict = true
 mypy_path = "src"
-packages = ["netrescale"]
+packages = ["scalar"]

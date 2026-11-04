@@ -2,9 +2,9 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from netrescale.detect.config_diff import diff_configs
-from netrescale.detect.config_risk import load_risk_rules
-from netrescale.detect.exposure import (
+from scalar.detect.config_diff import diff_configs
+from scalar.detect.config_risk import load_risk_rules
+from scalar.detect.exposure import (
     Advisory,
     CveData,
     DeviceFeatures,
@@ -12,7 +12,7 @@ from netrescale.detect.exposure import (
     Status,
     assess,
 )
-from netrescale.detect.findings import (
+from scalar.detect.findings import (
     AuditStatus,
     AuditTrail,
     from_config_diff,
@@ -22,10 +22,10 @@ from netrescale.detect.findings import (
     from_rule_hit,
     from_stale_cve_data,
 )
-from netrescale.detect.rules import RuleEngine, load_rules
-from netrescale.detect.severity import Severity
-from netrescale.parse.nslog import parse_line
-from netrescale.parse.version import Build, parse_version
+from scalar.detect.rules import RuleEngine, load_rules
+from scalar.detect.severity import Severity
+from scalar.parse.nslog import parse_line
+from scalar.parse.version import Build, parse_version
 
 RULES = load_risk_rules()
 LOW_CHANGE = diff_configs("set ns hostName a\n", "set ns hostName a\nadd lb vserver v HTTP\n",

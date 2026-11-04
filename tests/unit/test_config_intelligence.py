@@ -3,13 +3,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from netrescale.detect.config_intelligence import (
+from scalar.detect.config_intelligence import (
     IndicatorKind,
     assess_config_indicators,
     load_config_intelligence,
 )
-from netrescale.detect.severity import Severity
-from netrescale.parse.nsconf import parse_many
+from scalar.detect.severity import Severity
+from scalar.parse.nsconf import parse_many
 
 
 def _by_id(config: str) -> dict[str, object]:

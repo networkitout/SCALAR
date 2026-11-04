@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from netrescale.config import load_config
-from netrescale.rsyslog import nftables_conf, rsyslog_conf, syslog_sources
+from scalar.config import load_config
+from scalar.rsyslog import nftables_conf, rsyslog_conf, syslog_sources
 
 EXAMPLE = Path(__file__).parents[2] / "deploy" / "config.example.yaml"
 

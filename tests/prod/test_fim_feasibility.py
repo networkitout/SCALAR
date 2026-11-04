@@ -1,22 +1,22 @@
 """FIM feasibility probe (roadmap Tier 1 item 1): which systemfile paths a real appliance lets
 the FIM account list and read. Read-only, and never run in CI (marker prod_probe).
 
-Preferred, with the daemon's own config and vault (run as root on the netrescale host)::
+Preferred, with the daemon's own config and vault (run as root on the scalar host)::
 
-    NETRESCALE_PROBE_DEVICE=ns-gw-02 PYTHONPATH=src .venv/bin/python -m pytest -m prod_probe \
+    SCALAR_PROBE_DEVICE=ns-gw-02 PYTHONPATH=src .venv/bin/python -m pytest -m prod_probe \
         tests/prod/test_fim_feasibility.py -p no:cacheprovider -s
 
 or, for a lab appliance, with an explicit account (TLS pin or CA bundle required)::
 
-    NETRESCALE_PROBE_HOST=10.0.0.11 NETRESCALE_PROBE_USER=nr_fim \
-    NETRESCALE_PROBE_PASSWORD=... NETRESCALE_PROBE_SPKI_PIN=<base64 sha256> ...
+    SCALAR_PROBE_HOST=10.0.0.11 SCALAR_PROBE_USER=sc_fim \
+    SCALAR_PROBE_PASSWORD=... SCALAR_PROBE_SPKI_PIN=<base64 sha256> ...
 
-The JSON report (NETRESCALE_PROBE_REPORT, default under the pytest tmp dir) lists, per
+The JSON report (SCALAR_PROBE_REPORT, default under the pytest tmp dir) lists, per
 watched directory: listed / refused / absent / error with the NITRO status and errorcode,
 entry counts, the raw field names and filemode values NITRO returned, and whether one small
 file could be read. It records hash outcomes only, never file content, and only counts (no
 names) for the deny-listed trees. Run it on an HA secondary of each firmware train (13.1,
-13.1-FIPS, 14.1) with the nr_fim account, and once with nr_nitro to compare.
+13.1-FIPS, 14.1) with the sc_fim account, and once with sc_nitro to compare.
 """
 
 import json
@@ -29,34 +29,34 @@ from urllib.parse import quote
 import httpx
 import pytest
 
-from netrescale.collect.fim import CONTENT_DENY, WATCHES, FimMonitor, content_allowed
-from netrescale.config import load_config
-from netrescale.runtime import Runtime, default_key_loader
-from netrescale.secrets.base import Credential
-from netrescale.store.snapshots import FileSnapshotStore
-from netrescale.transport.nitro import NitroClient, NitroError, NitroTarget, PermissionDenied
+from scalar.collect.fim import CONTENT_DENY, WATCHES, FimMonitor, content_allowed
+from scalar.config import load_config
+from scalar.runtime import Runtime, default_key_loader
+from scalar.secrets.base import Credential
+from scalar.store.snapshots import FileSnapshotStore
+from scalar.transport.nitro import NitroClient, NitroError, NitroTarget, PermissionDenied
 
 pytestmark = pytest.mark.prod_probe
 
-MISSING = "/var/netrescale-probe-does-not-exist"
+MISSING = "/var/scalar-probe-does-not-exist"
 POLICY_CHECKS = ("/nsconfig/ssl", "/nsconfig/keys", "/flash/nsconfig/keys", "/var/log")
 
 
 def _client() -> NitroClient:
-    device_name = os.environ.get("NETRESCALE_PROBE_DEVICE")
+    device_name = os.environ.get("SCALAR_PROBE_DEVICE")
     if device_name:
-        path = Path(os.environ.get("NETRESCALE_CONFIG", "/etc/netrescale/config.yaml"))
+        path = Path(os.environ.get("SCALAR_CONFIG", "/etc/scalar/config.yaml"))
         cfg = load_config(path)
         device = cfg.device(device_name)
         runtime = Runtime(cfg, default_key_loader(cfg), config_path=path)
         return runtime.nitro_client(device, credential=cfg.fim_ref(device))
-    host = os.environ.get("NETRESCALE_PROBE_HOST")
-    user = os.environ.get("NETRESCALE_PROBE_USER")
-    password = os.environ.get("NETRESCALE_PROBE_PASSWORD")
+    host = os.environ.get("SCALAR_PROBE_HOST")
+    user = os.environ.get("SCALAR_PROBE_USER")
+    password = os.environ.get("SCALAR_PROBE_PASSWORD")
     if not (host and user and password):
-        pytest.skip("set NETRESCALE_PROBE_DEVICE, or NETRESCALE_PROBE_HOST/_USER/_PASSWORD")
-    target = NitroTarget("probe", host, spki_pin=os.environ.get("NETRESCALE_PROBE_SPKI_PIN"),
-                         ca_bundle=os.environ.get("NETRESCALE_PROBE_CA_BUNDLE"))
+        pytest.skip("set SCALAR_PROBE_DEVICE, or SCALAR_PROBE_HOST/_USER/_PASSWORD")
+    target = NitroTarget("probe", host, spki_pin=os.environ.get("SCALAR_PROBE_SPKI_PIN"),
+                         ca_bundle=os.environ.get("SCALAR_PROBE_CA_BUNDLE"))
     return NitroClient(target, lambda: Credential(user, password))
 
 
@@ -130,14 +130,14 @@ async def test_fim_feasibility(tmp_path: Path) -> None:
                 sha, outcome = await monitor.fetch_hash(client, readable[0].path)
                 entry["read"] = {"path": readable[0].path, "outcome": outcome,
                                  "sha256": sha}
-        for location in POLICY_CHECKS:  # counts only: these should be refused for nr_fim
+        for location in POLICY_CHECKS:  # counts only: these should be refused for sc_fim
             try:
                 listed = await client.list_files(location)
                 report["policy_checks"][location] = {"status": "listed", "entries": len(listed)}
             except NitroError as exc:
                 report["policy_checks"][location] = _error(exc)
 
-    out = Path(os.environ.get("NETRESCALE_PROBE_REPORT", tmp_path / "fim-feasibility.json"))
+    out = Path(os.environ.get("SCALAR_PROBE_REPORT", tmp_path / "fim-feasibility.json"))
     out.write_text(json.dumps(report, indent=2, sort_keys=True))
     out.chmod(0o600)
     print(f"\nFIM feasibility report: {out}")

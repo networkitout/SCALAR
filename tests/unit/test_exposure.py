@@ -3,8 +3,8 @@ from typing import Any
 
 import pytest
 
-from netrescale.collect.features import detect_features
-from netrescale.detect.exposure import (
+from scalar.collect.features import detect_features
+from scalar.detect.exposure import (
     AdvisoryResult,
     DeviceFeatures,
     ExposureReport,
@@ -12,10 +12,10 @@ from netrescale.detect.exposure import (
     assess,
     load_cve_data,
 )
-from netrescale.detect.severity import Severity
-from netrescale.parse.version import Build, VersionParseError, parse_version
-from netrescale.secrets.base import Credential
-from netrescale.transport.nitro import NitroClient, NitroTarget
+from scalar.detect.severity import Severity
+from scalar.parse.version import Build, VersionParseError, parse_version
+from scalar.secrets.base import Credential
+from scalar.transport.nitro import NitroClient, NitroTarget
 from tests.emulator.nitro import FakeNitro
 
 DATA = load_cve_data()
@@ -287,7 +287,7 @@ async def _features(servers: list[dict[str, Any]]) -> tuple[DeviceFeatures, Fake
     fake = FakeNitro(resources={"server": servers, "service": [{"name": "s1",
                                                                 "ipaddress": "192.0.2.20"}]})
     target = NitroTarget("ns1", "ns1.example", spki_pin="unused-with-mock-transport")
-    async with NitroClient(target, lambda: Credential("nr_nitro", "nitro-password"),
+    async with NitroClient(target, lambda: Credential("sc_nitro", "nitro-password"),
                            transport=fake.transport()) as c:
         return await detect_features(c), fake
 

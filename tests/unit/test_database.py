@@ -9,25 +9,25 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.schema import CreateSchema, DropSchema
 
-from netrescale.config import Config
-from netrescale.daemon.service import Service
-from netrescale.detect.config_diff import diff_configs
-from netrescale.detect.config_risk import load_risk_rules
-from netrescale.detect.findings import Finding, from_config_diff, from_rule_hit
-from netrescale.detect.rules import ListMatcher, RuleEngine, load_rules
-from netrescale.detect.severity import Severity
-from netrescale.parse.nslog import LogEvent, parse_line
-from netrescale.runtime import Runtime
-from netrescale.secrets.base import Credential
-from netrescale.secrets.vault import Vault, generate_key
-from netrescale.store.database import (
+from scalar.config import Config
+from scalar.daemon.service import Service
+from scalar.detect.config_diff import diff_configs
+from scalar.detect.config_risk import load_risk_rules
+from scalar.detect.findings import Finding, from_config_diff, from_rule_hit
+from scalar.detect.rules import ListMatcher, RuleEngine, load_rules
+from scalar.detect.severity import Severity
+from scalar.parse.nslog import LogEvent, parse_line
+from scalar.runtime import Runtime
+from scalar.secrets.base import Credential
+from scalar.secrets.vault import Vault, generate_key
+from scalar.store.database import (
     NOTIFY_KEYS_PER_RULE,
     Database,
     IndexedEvent,
     events,
     hunt_runs,
 )
-from netrescale.web.data import WebData
+from scalar.web.data import WebData
 from tests.emulator.nitro import FakeNitro
 from tests.unit.test_service import CollectSink, stop_after
 
@@ -39,9 +39,9 @@ def database(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[Databas
     schema = "test_" + uuid.uuid4().hex
     base = None
     if request.param == "postgresql":
-        url = os.environ.get("NETRESCALE_TEST_DATABASE_URL")
+        url = os.environ.get("SCALAR_TEST_DATABASE_URL")
         if not url:
-            pytest.skip("set NETRESCALE_TEST_DATABASE_URL for PostgreSQL integration tests")
+            pytest.skip("set SCALAR_TEST_DATABASE_URL for PostgreSQL integration tests")
         base = create_engine(url)
         with base.begin() as connection:
             connection.execute(CreateSchema(schema))
@@ -420,7 +420,7 @@ async def test_appliance_to_durable_alert_workflow(database: Database, tmp_path:
     })
     key = generate_key()
     Vault.create(cfg.paths.vault, key).set(
-        "nr_nitro", Credential("nr_nitro", "nitro-password"), actor="test")
+        "sc_nitro", Credential("sc_nitro", "nitro-password"), actor="test")
     fake = FakeNitro(running="set ns hostName gateway\n", saved="set ns hostName gateway\n")
     sink = CollectSink()
     service = Service(Runtime(cfg, lambda: key, nitro_transport=lambda device: fake.transport()),

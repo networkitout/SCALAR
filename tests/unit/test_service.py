@@ -10,7 +10,7 @@ import yaml
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError, OperationalError
 
-from netrescale.config import (
+from scalar.config import (
     Config,
     Device,
     DeviceFim,
@@ -19,22 +19,22 @@ from netrescale.config import (
     Notify,
     WebhookSink,
 )
-from netrescale.control import ControlClient
-from netrescale.daemon import service as service_module
-from netrescale.daemon.service import (
+from scalar.control import ControlClient
+from scalar.daemon import service as service_module
+from scalar.daemon.service import (
     Service,
     coverage_reductions,
     instance_lock,
 )
-from netrescale.detect.findings import AuditStatus, Finding
-from netrescale.detect.severity import Severity
-from netrescale.runtime import Runtime
-from netrescale.secrets.base import Credential, CredentialError
-from netrescale.secrets.resolver import CredentialBlocked
-from netrescale.secrets.vault import Vault, generate_key
-from netrescale.store.database import Database
-from netrescale.transport.nitro import NitroClient
-from netrescale.web.auth import set_password
+from scalar.detect.findings import AuditStatus, Finding
+from scalar.detect.severity import Severity
+from scalar.runtime import Runtime
+from scalar.secrets.base import Credential, CredentialError
+from scalar.secrets.resolver import CredentialBlocked
+from scalar.secrets.vault import Vault, generate_key
+from scalar.store.database import Database
+from scalar.transport.nitro import NitroClient
+from scalar.web.auth import set_password
 from tests.emulator.nitro import FakeNitro
 
 requires_peercred = pytest.mark.skipif(
@@ -47,7 +47,7 @@ BASE = "#NS14.1 Build 73.37\nset ns hostName ns-gw-01\n"
 def test_platform_resources_are_bounded_and_unavailable_paths_are_explicit(tmp_path: Path) -> None:
     import json
 
-    from netrescale.daemon.health import ResourceMonitor
+    from scalar.daemon.health import ResourceMonitor
 
     monitor = ResourceMonitor()
     snapshot = monitor.snapshot(tmp_path, tmp_path / "missing")
@@ -181,7 +181,7 @@ class CollectSink:
 @pytest.mark.parametrize("settings", [
     {"spki_pinning": False, "spki_pin": "unused-old-fingerprint"},
     {"spki_pinning": False, "spki_pin": None},
-    {"spki_pin": None, "ca_bundle": "/etc/netrescale/roots.pem"},
+    {"spki_pin": None, "ca_bundle": "/etc/scalar/roots.pem"},
 ])
 async def test_readiness_accepts_ca_validation_without_spki(setup, settings) -> None:  # type: ignore[no-untyped-def]
     service, fake, _sink = setup
@@ -204,7 +204,7 @@ def setup(tmp_path: Path):  # type: ignore[no-untyped-def]
     config_path = tmp_path / "config.yaml"
     config_path.write_text(yaml.safe_dump(cfg.model_dump(mode="json")))
     key = generate_key()
-    Vault.create(cfg.paths.vault, key).set("nr_nitro", Credential("nr_nitro", "nitro-password"),
+    Vault.create(cfg.paths.vault, key).set("sc_nitro", Credential("sc_nitro", "nitro-password"),
                                            actor="t")
     fake = FakeNitro(running=BASE, saved=BASE)
     rt = Runtime(cfg, lambda: key, nitro_transport=lambda d: fake.transport(), config_path=config_path)
@@ -251,7 +251,7 @@ async def test_config_loop_alerts_on_change_with_one_session(setup) -> None:  # 
 
 async def test_auth_rejection_blocks_and_alerts_once(setup) -> None:  # type: ignore[no-untyped-def]
     svc, fake, sink = setup
-    fake.users["nr_nitro"] = "rotated-on-appliance"
+    fake.users["sc_nitro"] = "rotated-on-appliance"
     stop_after(svc, 5)
     await svc.config_loop(svc.cfg.devices[0])
     await svc.deliver_pending()
@@ -262,13 +262,13 @@ async def test_auth_rejection_blocks_and_alerts_once(setup) -> None:  # type: ig
 
 async def test_daemon_recovers_after_external_credential_rotation(setup) -> None:  # type: ignore[no-untyped-def]
     svc, fake, _sink = setup
-    fake.users["nr_nitro"] = "rotated-on-appliance"
+    fake.users["sc_nitro"] = "rotated-on-appliance"
     admin_runtime = Runtime(svc.cfg, svc.rt.key_loader)
 
     def rotate(step: int) -> None:
         if step == 3:
             admin_runtime.provider.vault.set(
-                "nr_nitro", Credential("nr_nitro", "rotated-on-appliance"), actor="admin")
+                "sc_nitro", Credential("sc_nitro", "rotated-on-appliance"), actor="admin")
 
     stop_after(svc, 6, rotate)
     await svc.config_loop(svc.cfg.devices[0])
@@ -490,7 +490,7 @@ async def test_readiness_configuration_error_waits_for_an_administrator(setup, m
 
     def check() -> None:
         calls.append(1)
-        raise ValueError("database schema is not initialized; run netrescale db init")
+        raise ValueError("database schema is not initialized; run scalar db init")
 
     monkeypatch.setattr(svc.db, "check", check)
     running = asyncio.create_task(svc.run())
@@ -631,7 +631,7 @@ def test_crash_loop_reaches_the_failed_state() -> None:
     from configparser import ConfigParser
 
     unit = ConfigParser(interpolation=None, strict=False)
-    unit.read(EXAMPLE.parent / "netrescale.service")
+    unit.read(EXAMPLE.parent / "scalar.service")
     interval = int(unit["Unit"]["StartLimitIntervalSec"])
     burst = int(unit["Unit"]["StartLimitBurst"])
     restart = int(unit["Service"]["RestartSec"].removesuffix("s"))
@@ -775,7 +775,7 @@ async def test_unavailable_audit_feed_is_not_escalated_on_ha_secondary(setup, ro
 
 
 @pytest.mark.parametrize("error", [
-    CredentialBlocked("local:nr_nitro is blocked after an authentication rejection"),
+    CredentialBlocked("local:sc_nitro is blocked after an authentication rejection"),
     CredentialError("vault unavailable"), RuntimeError("unexpected")])
 async def test_ha_role_lookup_failure_escalates_instead_of_withholding(setup, monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:  # type: ignore[no-untyped-def]
     svc, fake, _sink = setup
@@ -1157,7 +1157,7 @@ def test_coverage_reductions_lists_each_weakening(setup) -> None:  # type: ignor
     cfg = svc.cfg
     previous = cfg.model_copy(update={
         "devices": [*cfg.devices, Device(name="edge", nsip="192.0.2.30")],
-        "notify": Notify(webhook=WebhookSink(url="https://hooks.example/netrescale"))})
+        "notify": Notify(webhook=WebhookSink(url="https://hooks.example/scalar"))})
     candidate = cfg.model_copy(update={
         "syslog": cfg.syslog.model_copy(update={"enabled": False}),
         "defaults": cfg.defaults.model_copy(update={
@@ -1226,7 +1226,7 @@ def test_coverage_reductions_detect_quiet_weakening(setup, path: str, value: obj
 async def test_redirected_sink_is_alerted_at_its_old_destination_only(setup) -> None:  # type: ignore[no-untyped-def]
     svc, _fake, collect = setup
     document = svc.cfg.model_dump(mode="json")
-    document["notify"] = {"webhook": {"url": "https://hooks.example/netrescale"}}
+    document["notify"] = {"webhook": {"url": "https://hooks.example/scalar"}}
     svc.rt.config_path.write_text(yaml.safe_dump(document))
     hook = Selective()
     service = Service(Runtime(Config.model_validate(document), svc.rt.key_loader,
@@ -1245,7 +1245,7 @@ async def test_redirected_sink_is_alerted_at_its_old_destination_only(setup) -> 
 async def test_settings_that_reduce_coverage_alert_remaining_sinks(setup) -> None:  # type: ignore[no-untyped-def]
     svc, _fake, collect = setup
     document = svc.cfg.model_dump(mode="json")
-    document["notify"] = {"webhook": {"url": "https://hooks.example/netrescale"}}
+    document["notify"] = {"webhook": {"url": "https://hooks.example/scalar"}}
     svc.rt.config_path.write_text(yaml.safe_dump(document))
     service = Service(Runtime(Config.model_validate(document), svc.rt.key_loader,
                               nitro_transport=svc.rt.nitro_transport,
@@ -1305,11 +1305,11 @@ async def test_status_and_digest_list_log_sources_never_received(setup) -> None:
 
 
 def _fim_service(svc: Service, fake: FakeNitro) -> Service:
-    """The setup service with FIM enabled on its device and the nr_fim account in the vault."""
+    """The setup service with FIM enabled on its device and the sc_fim account in the vault."""
     device = svc.cfg.devices[0].model_copy(update={"fim": DeviceFim(enabled=True)})
     cfg = svc.cfg.model_copy(update={"devices": [device]})
-    svc.rt.provider.vault.set("nr_fim", Credential("nr_fim", "fim-password"), actor="t")
-    fake.users["nr_fim"] = "fim-password"
+    svc.rt.provider.vault.set("sc_fim", Credential("sc_fim", "fim-password"), actor="t")
+    fake.users["sc_fim"] = "fim-password"
     fake.files.update({"/nsconfig/rc.netscaler": b"#!/bin/sh\n", "/var/vpn/themes/a.js": b"x"})
     return Service(Runtime(cfg, svc.rt.key_loader, nitro_transport=svc.rt.nitro_transport,
                            config_path=svc.rt.config_path), sinks=svc.router.sinks,
@@ -1338,7 +1338,7 @@ async def test_fim_loop_uses_its_own_account_and_one_session(setup) -> None:  # 
     sent = {f.rule_id: f for f in sink.sent}
     assert sent["fim-baseline-recorded"].severity is Severity.MEDIUM
     assert sent["fim-boot-hook-changed"].severity is Severity.CRITICAL
-    assert _logins(fake) == ["nr_fim"]  # never nr_nitro, and one long-lived session
+    assert _logins(fake) == ["sc_fim"]  # never sc_nitro, and one long-lived session
     health = service.status()["devices"][device.name]["fim"]
     assert health["enabled"] and health["successes"] == 3 and health["coverage_gaps"] == []
     assert {f["rule_id"] for f in service.findings_log.read()} >= {"fim-boot-hook-changed"}
@@ -1355,7 +1355,7 @@ async def test_fim_is_off_unless_enabled_per_device(setup) -> None:  # type: ign
     finally:
         svc.stop()
         await asyncio.wait_for(running, 5)
-    assert "nr_fim" not in _logins(fake)
+    assert "sc_fim" not in _logins(fake)
 
 
 async def test_fim_task_starts_for_an_enabled_device(setup) -> None:  # type: ignore[no-untyped-def]
@@ -1374,15 +1374,15 @@ async def test_fim_task_starts_for_an_enabled_device(setup) -> None:  # type: ig
 async def test_fim_account_rejection_is_reported_once(setup) -> None:  # type: ignore[no-untyped-def]
     svc, fake, sink = setup
     service = _fim_service(svc, fake)
-    fake.users["nr_fim"] = "rotated-on-the-appliance"
+    fake.users["sc_fim"] = "rotated-on-the-appliance"
     stop_after(service, 3)
     await service.fim_loop(service.cfg.devices[0])
     await service.deliver_pending()
     unavailable = [f for f in sink.sent if f.rule_id == "fim-unavailable"]
     assert len(unavailable) == 1 and unavailable[0].severity is Severity.HIGH
-    assert unavailable[0].evidence["account"] == "local:nr_fim"
+    assert unavailable[0].evidence["account"] == "local:sc_fim"
     assert service.status()["state"] == "degraded"
-    # The FIM account's lockout does not block config polling with nr_nitro.
+    # The FIM account's lockout does not block config polling with sc_nitro.
     stop_after(service, 1)
     service._stop.clear()
     await service.config_loop(service.cfg.devices[0])
@@ -1413,7 +1413,7 @@ async def test_fim_pause_prevents_listing(setup) -> None:  # type: ignore[no-unt
     await service.pause_monitoring()
     stop_after(service, 2)
     await service.fim_loop(service.cfg.devices[0])
-    assert "nr_fim" not in _logins(fake)
+    assert "sc_fim" not in _logins(fake)
 
 
 def test_disabling_fim_is_a_coverage_reduction(setup) -> None:  # type: ignore[no-untyped-def]

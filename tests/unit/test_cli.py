@@ -7,9 +7,9 @@ import yaml
 from sqlalchemy import create_engine
 from typer.testing import CliRunner
 
-from netrescale.cli import main as cli
-from netrescale.secrets.vault import Vault, generate_key
-from netrescale.store.database import Database
+from scalar.cli import main as cli
+from scalar.secrets.vault import Vault, generate_key
+from scalar.store.database import Database
 
 EXAMPLE = Path(__file__).parents[2] / "deploy" / "config.example.yaml"
 runner = CliRunner()
@@ -25,7 +25,7 @@ def test_appliance_network_restart_only_touches_monitor_service(cfg_path: Path,
                                                                monkeypatch: pytest.MonkeyPatch) -> None:
     import subprocess
 
-    from netrescale import appliance
+    from scalar import appliance
 
     monkeypatch.setattr(cli.os, "geteuid", lambda: 0)
     monkeypatch.setattr(appliance, "allow_appliance_network", lambda cfg: ["192.0.2.10/32"])
@@ -34,7 +34,7 @@ def test_appliance_network_restart_only_touches_monitor_service(cfg_path: Path,
     result = runner.invoke(cli.app, ["--config", str(cfg_path), "device", "allow-network", "--restart"])
     assert result.exit_code == 0, result.output
     assert commands == [["/usr/bin/systemctl", "daemon-reload"],
-                        ["/usr/bin/systemctl", "restart", "netrescale"]]
+                        ["/usr/bin/systemctl", "restart", "scalar"]]
     assert "192.0.2.10/32" in result.output
 
 
@@ -48,7 +48,7 @@ def test_http_setup_requires_root(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_http_setup_command_and_explicit_restart(monkeypatch: pytest.MonkeyPatch) -> None:
     import subprocess
 
-    from netrescale.web import server
+    from scalar.web import server
 
     monkeypatch.setattr(cli.os, "geteuid", lambda: 0)
     calls = []
@@ -65,7 +65,7 @@ def test_http_setup_command_and_explicit_restart(monkeypatch: pytest.MonkeyPatch
     assert result.exit_code == 0, result.output
     assert calls == [("192.0.2.50", ["198.51.100.5/32"], None)]
     assert commands == [["/usr/bin/systemctl", "daemon-reload"],
-                        ["/usr/bin/systemctl", "restart", "netrescale", "netrescale-web"]]
+                        ["/usr/bin/systemctl", "restart", "scalar", "scalar-web"]]
     assert "without encryption" in result.output
 
 
@@ -109,7 +109,7 @@ def test_config_forensic_safe(tmp_path: Path) -> None:
     path.write_text(
         "set ns hostName ns-gw-01\n"
         "set ns ip 10.0.0.10 -mgmtAccess ENABLED -ssh ENABLED -gui ENABLED -telnet DISABLED\n"
-        "add system user nr_nitro 0123456789abcdef0123456789abcdef -encrypted -hashmethod SHA512\n"
+        "add system user sc_nitro 0123456789abcdef0123456789abcdef -encrypted -hashmethod SHA512\n"
     )
     result = runner.invoke(cli.app, ["config", "forensic", str(path)])
     assert result.exit_code == 0, result.output
@@ -165,17 +165,17 @@ def test_config_forensic_compare_previous(tmp_path: Path) -> None:
 
 def test_cred_set_list_rm(cfg_path: Path, key: bytes) -> None:
     base = ["--config", str(cfg_path)]
-    r = runner.invoke(cli.app, [*base, "cred", "set", "nr_nitro", "--stdin"],
+    r = runner.invoke(cli.app, [*base, "cred", "set", "sc_nitro", "--stdin"],
                       input="hunter2-secret\n")
     assert r.exit_code == 0, r.output
     assert "ns-gw-01" in r.output
     r = runner.invoke(cli.app, [*base, "cred", "list"])
-    assert "nr_nitro" in r.output and "hunter2" not in r.output
-    assert Vault.open(cfg_path.parent / "vault", key).get("nr_nitro").reveal_password() \
+    assert "sc_nitro" in r.output and "hunter2" not in r.output
+    assert Vault.open(cfg_path.parent / "vault", key).get("sc_nitro").reveal_password() \
         == "hunter2-secret"
-    r = runner.invoke(cli.app, [*base, "cred", "rm", "nr_nitro"])
+    r = runner.invoke(cli.app, [*base, "cred", "rm", "sc_nitro"])
     assert r.exit_code == 1 and "--yes" in r.output
-    r = runner.invoke(cli.app, [*base, "cred", "rm", "nr_nitro", "--yes"])
+    r = runner.invoke(cli.app, [*base, "cred", "rm", "sc_nitro", "--yes"])
     assert r.exit_code == 0
 
 
@@ -237,8 +237,8 @@ def test_snippets(cfg_path: Path) -> None:
     r = runner.invoke(cli.app, ["--config", str(cfg_path), "snippets", "ns-gw-01",
                                 "--server-ip", "10.0.0.50"])
     assert r.exit_code == 0, r.output
-    assert "add system cmdPolicy netrescale_ro ALLOW" in r.output
-    assert "add audit syslogAction nr_syslog 10.0.0.50" in r.output
+    assert "add system cmdPolicy scalar_ro ALLOW" in r.output
+    assert "add audit syslogAction sc_syslog 10.0.0.50" in r.output
     assert "PRIMARY only" in r.output
     r = runner.invoke(cli.app, ["--config", str(cfg_path), "snippets", "nope",
                                 "--server-ip", "10.0.0.50"])
@@ -302,7 +302,7 @@ def test_status_text_shows_missing_log_sources_and_exposure(cfg_path: Path,
 
 
 def test_archive_cli_search_and_verify(cfg_path: Path) -> None:
-    from netrescale.store.archive import RawArchive
+    from scalar.store.archive import RawArchive
 
     document = yaml.safe_load(cfg_path.read_text())
     document["paths"]["state_dir"] = str(cfg_path.parent)
@@ -320,7 +320,7 @@ def test_archive_cli_search_and_verify(cfg_path: Path) -> None:
 
 def test_web_account_creation_prompts_and_stores_only_hash(cfg_path: Path,
                                                           monkeypatch: pytest.MonkeyPatch) -> None:
-    from netrescale.web.auth import AuthStore
+    from scalar.web.auth import AuthStore
 
     document = yaml.safe_load(cfg_path.read_text())
     document["paths"]["state_dir"] = str(cfg_path.parent)

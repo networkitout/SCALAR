@@ -12,9 +12,9 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
-from netrescale.secrets.base import Credential
-from netrescale.secrets.resolver import CredentialBlocked, CredentialRef, LockoutGuard
-from netrescale.transport.nitro import (
+from scalar.secrets.base import Credential
+from scalar.secrets.resolver import CredentialBlocked, CredentialRef, LockoutGuard
+from scalar.transport.nitro import (
     AuthRejected,
     NitroClient,
     NitroError,
@@ -22,14 +22,14 @@ from netrescale.transport.nitro import (
     PermissionDenied,
     ReadOnlyViolation,
 )
-from netrescale.transport.tls import PinMismatch, describe_cert, spki_sha256
+from scalar.transport.tls import PinMismatch, describe_cert, spki_sha256
 from tests.emulator.nitro import FakeNitro
 
 TARGET = NitroTarget("ns1", "ns1.example", spki_pin="unused-with-mock-transport")
 
 
 def client(fake: FakeNitro, pw: str = "nitro-password", **kw: object) -> NitroClient:
-    return NitroClient(TARGET, lambda: Credential("nr_nitro", pw), transport=fake.transport(),
+    return NitroClient(TARGET, lambda: Credential("sc_nitro", pw), transport=fake.transport(),
                        **kw)  # type: ignore[arg-type]
 
 
@@ -64,7 +64,7 @@ async def test_session_expiry_relogs_once() -> None:
 async def test_bad_password_trips_lockout_guard_and_is_not_retried() -> None:
     fake = FakeNitro()
     guard = LockoutGuard()
-    ref = CredentialRef.parse("local:nr_nitro")
+    ref = CredentialRef.parse("local:sc_nitro")
     c = client(fake, pw="wrong", on_auth_rejected=lambda: guard.record_rejection("ns1", ref))
     with pytest.raises(AuthRejected):
         await c.version_string()
@@ -250,14 +250,14 @@ async def test_pin_match_and_mismatch_on_real_tls(tmp_path: Path) -> None:
     server, port = await _serve(cert, key, received)
     try:
         ok = NitroClient(NitroTarget("lab", "127.0.0.1", port, spki_pin=good_pin),
-                         lambda: Credential("nr_nitro", "pin-test-password"))
+                         lambda: Credential("sc_nitro", "pin-test-password"))
         await ok.login()  # completes the handshake and sends the login
         await ok._http.aclose()
         assert any(b"pin-test-password" in r for r in received)
 
         received.clear()
         bad = NitroClient(NitroTarget("lab", "127.0.0.1", port, spki_pin="AAAA" + good_pin[4:]),
-                          lambda: Credential("nr_nitro", "pin-test-password"))
+                          lambda: Credential("sc_nitro", "pin-test-password"))
         with pytest.raises(PinMismatch):
             await bad.login()
         await bad._http.aclose()
@@ -287,7 +287,7 @@ async def test_spki_disabled_still_validates_ca_and_identity(
                          ca_bundle=str(cert) if trust in {"bundle", "wrong-address"} else None,
                          spki_pinning=False)
     try:
-        async with NitroClient(target, lambda: Credential("nr_nitro", "ca-test-password")) as nitro:
+        async with NitroClient(target, lambda: Credential("sc_nitro", "ca-test-password")) as nitro:
             if trust in {"bundle", "system"}:
                 await nitro.login()
                 assert any(b"ca-test-password" in request for request in received)

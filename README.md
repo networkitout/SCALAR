@@ -1,9 +1,5 @@
 # SCALAR
 
-> The project is named **SCALAR**. The Python package, CLI command, systemd units and file
-> paths keep the original `netrescale` identifier (for example `sudo netrescale web user-set`,
-> `/etc/netrescale/config.yaml`), so existing installs and the commands below are unchanged.
-
 A self-hosted monitor for Citrix/NetScaler ADC and Gateway appliances, with an authenticated
 browser dashboard and an administrative CLI. It runs on an Ubuntu 24.04 server with management
 access to the NetScalers, and it:
@@ -44,7 +40,7 @@ remembered in that browser; without a saved choice, the interface follows the sy
 | M1 Credentials, inventory, exposure check | **Working**: vault, escrow/backup/restore/rekey, lockout guard, TLS key pinning, `exposure` |
 | M2 Config-change alerts | Poller, recoverable config alerts, snapshots, risk scoring, drift/tamper detection, audit-command candidates, and HA configuration divergence after a sync grace period |
 | M3 Syslog pipeline | Live tailer, restart checkpoints, truncation detection, rule/session evaluation, silence alerts, daily zstd archives, hash-chain verification, PostgreSQL indexing, and durable notification retries |
-| File-integrity monitoring (NITRO) | Opt-in per device (`fim.enabled`): boot hooks, crontabs, SSH keys and httpd.conf on every probe; web roots, temp and crash directories every 5-15 min, over read-only `GET systemfile` with a separate `nr_fim` account. Built against the emulator; validate on your firmware first (docs/operations.md) |
+| File-integrity monitoring (NITRO) | Opt-in per device (`fim.enabled`): boot hooks, crontabs, SSH keys and httpd.conf on every probe; web roots, temp and crash directories every 5-15 min, over read-only `GET systemfile` with a separate `sc_fim` account. Built against the emulator; validate on your firmware first (docs/operations.md) |
 | M4 SSH log pulls / M5 SSH host sweeps / M6 telemetry | Not included in 0.4. Active mode is rejected at startup; no SSH superuser account is needed |
 
 The rule pack's test lines follow the documented NetScaler log formats. Add sanitized real
@@ -55,8 +51,8 @@ lines from your appliances as you collect them.
 After installation, create your own web account and start the separate dashboard service:
 
 ```bash
-sudo netrescale web user-set admin
-sudo systemctl enable --now netrescale-web
+sudo scalar web user-set admin
+sudo systemctl enable --now scalar-web
 ```
 
 **There is no default password.** The first command prompts for a password of at least
@@ -82,8 +78,8 @@ For shared network access, put an HTTPS reverse proxy on this host in front of
 web:
   host: 127.0.0.1
   port: 8080
-  public_url: https://netrescale.example.internal
-  allowed_hosts: [localhost, 127.0.0.1, netrescale.example.internal]
+  public_url: https://scalar.example.internal
+  allowed_hosts: [localhost, 127.0.0.1, scalar.example.internal]
   session_hours: 8
 ```
 
@@ -99,12 +95,12 @@ For an explicitly trusted internal network, enable HTTP with a specific server I
 and an allowed client IP/CIDR (repeat `--allow-network` for additional client networks):
 
 ```bash
-sudo netrescale web allow-http --host 192.0.2.50 --allow-network 198.51.100.0/24 --restart
+sudo scalar web allow-http --host 192.0.2.50 --allow-network 198.51.100.0/24 --restart
 ```
 
 Replace those example addresses with your server and permitted clients. The command sets
 `web.allow_http: true`, binds that address, configures the HTTP public URL, and creates
-`netrescale-web.service.d/20-http-access.conf` with only the specified `IPAddressAllow=`
+`scalar-web.service.d/20-http-access.conf` with only the specified `IPAddressAllow=`
 entries. The unit's default deny and other sandbox restrictions remain in place. It backs
 up the application config, does not change UFW/firewall rules, and does not change appliance
 TLS settings. Permit the configured port through the host firewall for those clients as needed.
@@ -124,7 +120,7 @@ To inspect the interface before appliance or PostgreSQL setup, use the developer
 described below and run:
 
 ```bash
-netrescale web preview --port 8081
+scalar web preview --port 8081
 ```
 
 Open http://127.0.0.1:8081. **Preview is anonymous, uses isolated sample data, and cannot
@@ -203,7 +199,7 @@ templates and local false positives before enabling them. These templates do not
 Exposure's firmware advisory data.
 
 An upgrade through `deploy/install.sh` creates the new `hunt_runs` table via `db init`, preserving
-existing data. Manual package upgrades also require `sudo -u netrescale netrescale db init`
+existing data. Manual package upgrades also require `sudo -u scalar scalar db init`
 before restarting both services.
 
 **Local-auth device setup:** the device editor shows name, management IP, a stored-credential
@@ -234,10 +230,10 @@ The monitoring service and dashboard have separate systemd network allowlists. A
 or changing appliance management IPs, grant only the configured ADC addresses with:
 
 ```bash
-sudo netrescale device allow-network --restart
+sudo scalar device allow-network --restart
 ```
 
-This writes a managed drop-in for `netrescale.service`, retaining its default deny and all
+This writes a managed drop-in for `scalar.service`, retaining its default deny and all
 existing custom drop-ins. It allows only each configured management IP (`/32` or `/128`),
 not syslog source addresses or an entire subnet, and does not change UFW or ADC configuration.
 Then use **Devices / Inspect TLS key**, verify the fingerprint independently,
@@ -279,25 +275,25 @@ for review. Backups missing referenced credentials are rejected.
 Upgrade an existing installation to enable the administration socket and permissions:
 
 ```bash
-cd /opt/netrescale
+cd /opt/scalar
 sudo bash deploy/install.sh
 sudo systemctl daemon-reload
-sudo systemctl restart netrescale netrescale-web
+sudo systemctl restart scalar scalar-web
 ```
 
 The installer preserves unit customizations, changing only the previous exact
-`ReadOnlyPaths=/etc/netrescale` directive to `ReadWritePaths=/etc/netrescale` in the monitoring
+`ReadOnlyPaths=/etc/scalar` directive to `ReadWritePaths=/etc/scalar` in the monitoring
 unit. The web unit remains read-only to configuration/state and still has no vault key.
 
 ## Quick start: Ubuntu 24.04
 
 Use a complete release checkout on a clean or existing Ubuntu 24.04 server. The installer is
 idempotent: it upgrades the Python environment and database schema, preserves
-`/etc/netrescale/config.yaml`, the vault, state, and customized units, and does not start
+`/etc/scalar/config.yaml`, the vault, state, and customized units, and does not start
 monitoring.
 
 ```bash
-cd /path/to/netrescale-release
+cd /path/to/scalar-release
 sudo bash deploy/install.sh
 ```
 
@@ -312,64 +308,64 @@ sudo bash deploy/install.sh --verify-only
 The installer creates the virtual environment, service account, local PostgreSQL 16
 database/schema, and monitoring/dashboard systemd units. It requires the included hash-pinned
 dependency lock. On upgrade it keeps an existing monitoring unit and writes the current
-template to `/etc/systemd/system/netrescale.service.packaged` for review.
+template to `/etc/systemd/system/scalar.service.packaged` for review.
 
 Complete these gates in order:
 
-1. **Edit `/etc/netrescale/config.yaml`.** Fill in the devices, HA pairs and notification
+1. **Edit `/etc/scalar/config.yaml`.** Fill in the devices, HA pairs and notification
   sinks. Remove example sinks you do not use. Set `syslog.admin_networks` and
   `syslog.admin_users` to enable the corresponding allowlist rules. Also edit
-  `/etc/systemd/system/netrescale.service.d/egress.conf`: add `IPAddressAllow=` entries for
+  `/etc/systemd/system/scalar.service.d/egress.conf`: add `IPAddressAllow=` entries for
   appliance management, DNS where needed, and notification destinations. Webhook/CDN IPs
   may change; prefer an internal relay when maintaining a strict egress allowlist.
 2. **Create the vault.** Store the escrow file offline (password manager or safe), then
    delete it from the server:
    ```bash
-   sudo netrescale bootstrap --escrow-out /root/netrescale-escrow.json
+   sudo scalar bootstrap --escrow-out /root/scalar-escrow.json
    ```
 3. **Pin each appliance's management TLS key.** Compare the fingerprint with the appliance
    before you accept it, then paste `spki_pin` into the config:
    ```bash
-   sudo netrescale device pin 10.0.0.10
+   sudo scalar device pin 10.0.0.10
    ```
 4. **Create the SCALAR accounts and the syslog target on the NetScaler.** On HA pairs,
    apply the printed commands on the primary only:
    ```bash
-   sudo netrescale snippets ns-gw-01 --server-ip <this-server-ip>
+   sudo scalar snippets ns-gw-01 --server-ip <this-server-ip>
    ```
 5. **Store and test the credentials.** Passwords are prompted for, never passed as arguments:
    ```bash
-   sudo netrescale cred set nr_nitro
-   sudo netrescale cred test nr_nitro
+   sudo scalar cred set sc_nitro
+   sudo scalar cred test sc_nitro
    ```
 6. **Run the first checks:**
    ```bash
-   sudo netrescale config validate
-   sudo netrescale probe ns-gw-02
-   sudo netrescale exposure
-   sudo netrescale device test ns-gw-01
+   sudo scalar config validate
+   sudo scalar probe ns-gw-02
+   sudo scalar exposure
+   sudo scalar device test ns-gw-01
    ```
   `probe` only reads NITRO resources. It does not enable SSH or verify every on-box log format.
 7. **Activate syslog ingestion:**
    ```bash
-   sudo netrescale rsyslog-config | sudo tee /etc/rsyslog.d/60-netrescale.conf >/dev/null
+   sudo scalar rsyslog-config | sudo tee /etc/rsyslog.d/60-scalar.conf >/dev/null
    sudo rsyslogd -N1
    sudo systemctl restart rsyslog
-   sudo netrescale rsyslog-config --nft
+   sudo scalar rsyslog-config --nft
    ```
   Review and persist the printed firewall rules in your existing nftables configuration.
   Do not replace an existing firewall policy. Allow TCP/514 only from inventory NSIPs/SNIPs.
-  Confirm the generated directories are `syslog:netrescale`, mode `0770`, so acknowledged
+  Confirm the generated directories are `syslog:scalar`, mode `0770`, so acknowledged
   source logs can be cleaned up after `syslog.source_days` (default two days).
 8. **Start and verify:**
    ```bash
    sudo systemctl daemon-reload
-   sudo systemctl enable --now netrescale
+   sudo systemctl enable --now scalar
    sudo bash deploy/install.sh --verify-only
-   sudo systemctl is-active netrescale
-   sudo -u netrescale netrescale status
-   sudo -u netrescale netrescale notify test
-   sudo journalctl -u netrescale -n 50 --no-pager
+   sudo systemctl is-active scalar
+   sudo -u scalar scalar status
+   sudo -u scalar scalar notify test
+   sudo journalctl -u scalar -n 50 --no-pager
    ```
    Wait for the first poll and forwarded logs before requiring `status` to report `healthy`.
    Confirm actual receipt through every enabled notification sink. A queued test is not proof
@@ -388,7 +384,7 @@ To test before installing system-wide (no root, no systemd):
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
 pytest -q
-netrescale exposure --version-string "NetScaler NS14.1: Build 47.46.nc"
+scalar exposure --version-string "NetScaler NS14.1: Build 47.46.nc"
 ```
 
 New devices stay in `mode: observe`: read-only NITRO plus passive syslog. Save activates inventory
@@ -399,14 +395,14 @@ state. Starting the dashboard does not start appliance polling.
 ## Offline forensic analysis (no service or appliance access)
 
 ```bash
-netrescale config diff ns.conf.old ns.conf.new        # risk-scored, redacted diff
-netrescale config diff ns.conf.old ns.conf.new --json > config-diff.json
-netrescale hunt ns.log ns.log.0.gz --device ns-gw-01 --admin-networks 10.20.0.0/16
-netrescale hunt ns.log --device ns-gw-01 --json > hunt.jsonl
-netrescale hunt bash.log --source bashlog
-netrescale exposure --version-string "NetScaler NS14.1: Build 47.46.nc"
-netrescale exposure --version-string "NetScaler NS14.1: Build 47.46.nc" --json > exposure.json
-netrescale rules list
+scalar config diff ns.conf.old ns.conf.new        # risk-scored, redacted diff
+scalar config diff ns.conf.old ns.conf.new --json > config-diff.json
+scalar hunt ns.log ns.log.0.gz --device ns-gw-01 --admin-networks 10.20.0.0/16
+scalar hunt ns.log --device ns-gw-01 --json > hunt.jsonl
+scalar hunt bash.log --source bashlog
+scalar exposure --version-string "NetScaler NS14.1: Build 47.46.nc"
+scalar exposure --version-string "NetScaler NS14.1: Build 47.46.nc" --json > exposure.json
+scalar rules list
 ```
 
 Expect `config diff` to report a count, highest severity, risk-rule reasons, and a redacted
@@ -428,11 +424,11 @@ specific than a deployed assessment.
 Run database and archive reads as the service account:
 
 ```bash
-sudo -u netrescale netrescale findings --days 7 --min-severity medium --json > findings.json
-sudo -u netrescale netrescale config history ns-gw-01
-sudo -u netrescale netrescale config history ns-gw-01 --show 3
-sudo -u netrescale netrescale search CMD_EXECUTED ns-gw-01 --days 7 > archive-hits.jsonl
-sudo -u netrescale netrescale archive verify ns-gw-01 --days 30
+sudo -u scalar scalar findings --days 7 --min-severity medium --json > findings.json
+sudo -u scalar scalar config history ns-gw-01
+sudo -u scalar scalar config history ns-gw-01 --show 3
+sudo -u scalar scalar search CMD_EXECUTED ns-gw-01 --days 7 > archive-hits.jsonl
+sudo -u scalar scalar archive verify ns-gw-01 --days 30
 ```
 
 `findings --json` emits one JSON array. `search` emits JSON Lines containing a scrubbed raw
@@ -451,19 +447,19 @@ head, and command output under your incident-handling procedure.
 ## Day-2 commands
 
 ```bash
-sudo -u netrescale netrescale status --json
-sudo -u netrescale netrescale findings --days 7 --min-severity medium
-sudo -u netrescale netrescale config history ns-gw-01
-sudo -u netrescale netrescale config history ns-gw-01 --show 3
-sudo -u netrescale netrescale search CMD_EXECUTED ns-gw-01 --days 7
-sudo -u netrescale netrescale archive verify ns-gw-01
-sudo netrescale config show ns-gw-01 --drift   # live unsaved changes
-sudo netrescale cred list                      # names, usernames, age, users; never passwords
-sudo netrescale cred rotate nr_nitro           # store the new password and test it everywhere
-sudo netrescale vault backup /root/netrescale-vault.bak
+sudo -u scalar scalar status --json
+sudo -u scalar scalar findings --days 7 --min-severity medium
+sudo -u scalar scalar config history ns-gw-01
+sudo -u scalar scalar config history ns-gw-01 --show 3
+sudo -u scalar scalar search CMD_EXECUTED ns-gw-01 --days 7
+sudo -u scalar scalar archive verify ns-gw-01
+sudo scalar config show ns-gw-01 --drift   # live unsaved changes
+sudo scalar cred list                      # names, usernames, age, users; never passwords
+sudo scalar cred rotate sc_nitro           # store the new password and test it everywhere
+sudo scalar vault backup /root/scalar-vault.bak
 ```
 
-Local PostgreSQL uses peer authentication: database commands run as `netrescale`, while
+Local PostgreSQL uses peer authentication: database commands run as `scalar`, while
 vault administration and live credential checks run as root. Raw archives and config
 snapshots contain sensitive appliance data and are protected by service-user permissions.
 Back up PostgreSQL, state, configuration, and vault escrow; see [docs/operations.md](docs/operations.md).
@@ -491,7 +487,7 @@ The full version is in [docs/threat-model.md](docs/threat-model.md).
 - **Vault protection:** the vault key is sealed with `systemd-creds`. This server has no TPM,
   so the seal uses the host key (`/var/lib/systemd/credential.secret`, root-only). **Root on
   this server, or a full disk image, can recover every NetScaler credential.** Limit the
-  blast radius with the least-privilege `nr_nitro` account (custom `netrescale_ro` command
+  blast radius with the least-privilege `sc_nitro` account (custom `scalar_ro` command
   policy) and management ACLs. Do not provision an SSH superuser for this release.
 - **Credential handling:** secrets never appear in logs, notifications or CLI arguments.
   Every outbound payload is checked against the decrypted secret values before sending.
@@ -519,7 +515,7 @@ pip-compile --generate-hashes --allow-unsafe --all-build-deps --strip-extras \
   --no-emit-index-url --no-emit-trusted-host -o requirements.lock pyproject.toml
 ```
 
-CI also runs storage tests against PostgreSQL 16. Set `NETRESCALE_TEST_DATABASE_URL` to a
+CI also runs storage tests against PostgreSQL 16. Set `SCALAR_TEST_DATABASE_URL` to a
 disposable PostgreSQL database to run those tests locally; tests create and remove isolated
 schemas. Never point that variable at production.
 

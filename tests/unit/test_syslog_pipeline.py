@@ -12,11 +12,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import DataError, OperationalError
 
-from netrescale.collect import syslog_pipeline
-from netrescale.collect.syslog_pipeline import MAX_REPLAYS, FeedHealth, SyslogPipeline
-from netrescale.config import Config, Device, Paths, Syslog
-from netrescale.parse.nslog import LogEvent
-from netrescale.store.database import Database
+from scalar.collect import syslog_pipeline
+from scalar.collect.syslog_pipeline import MAX_REPLAYS, FeedHealth, SyslogPipeline
+from scalar.config import Config, Device, Paths, Syslog
+from scalar.parse.nslog import LogEvent
+from scalar.store.database import Database
 
 NS = "<134> 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : default "
 HIGH_RISK = (NS + 'GUI CMD_EXECUTED 812 0 : User admin1 - Remote_ip 10.20.0.5 - '

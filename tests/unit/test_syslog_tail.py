@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from netrescale.collect.syslog_tail import SyslogTailer
-from netrescale.config import Config, Device
-from netrescale.parse.nslog import parse_line, parse_syslog
+from scalar.collect.syslog_tail import SyslogTailer
+from scalar.config import Config, Device
+from scalar.parse.nslog import parse_line, parse_syslog
 
 
 @pytest.fixture

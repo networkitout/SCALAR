@@ -30,7 +30,7 @@ in CI).
 
 ```
 NetScalers ──syslog──▶ rsyslog ──▶ per-node log files ──▶ log puller / host sweeps (SSH)
-   └── NITRO HTTPS: GET-only, SPKI-pinned ◀── config poller / telemetry (src/netrescale/transport/nitro.py)
+   └── NITRO HTTPS: GET-only, SPKI-pinned ◀── config poller / telemetry (src/scalar/transport/nitro.py)
                  │
          parse ─▶ rule stream ─▶ findings ─▶ notifications (SMTP | SIEM/Cribl | webhook)
            ├─▶ raw archive (zstd, hash-chained)
@@ -67,10 +67,10 @@ NetScalers ──syslog──▶ rsyslog ──▶ per-node log files ──▶ 
 
 - **Read-only toward NetScalers is a hard invariant**, enforced in code (not just by convention)
   in the NITRO transport. Any new appliance-facing feature must go through the same guard or
-  print commands for an admin to run manually (see `appliance.py` / `netrescale snippets`).
+  print commands for an admin to run manually (see `appliance.py` / `scalar snippets`).
 - Devices default to `mode: observe` (NITRO only); SSH log pulls/host sweeps are opt-in per
-  device only after `netrescale probe` passes.
-- Secrets: register every decrypted value with `netrescale.redact.registry`; use
+  device only after `scalar probe` passes.
+- Secrets: register every decrypted value with `scalar.redact.registry`; use
   `RedactingFilter` on loggers that might see secret-adjacent data.
 - Ruff config (`pyproject.toml`) ignores `S101` (assert) and relaxes `S`/`B`/`E501` for
   `tests/**` (test vectors are real, unwrapped log/config lines) and `E501` for

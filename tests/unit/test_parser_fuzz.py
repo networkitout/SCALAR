@@ -5,7 +5,7 @@ import time
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from netrescale.parse.nslog import extract_fields, parse_line, parse_syslog
+from scalar.parse.nslog import extract_fields, parse_line, parse_syslog
 
 FUZZ = settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 SEEDS = [

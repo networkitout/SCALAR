@@ -1,0 +1,253 @@
+# NetScaler ADC / Gateway vulnerable-build table used by `scalar exposure`.
+#
+# Semantics per advisory:
+#   fixed:        train -> first fixed build. Builds below it on that train are VULNERABLE.
+#   not_affected: trains the bulletin lists as unaffected.
+#   unfixed:      trains that are affected and will never get a fix (end of life).
+#   Any train not listed gets status UNKNOWN, never a silent "fine".
+#   requires:     config conditions for exploitability. Unknown conditions are reported as
+#                 "possibly exposed", not dropped.
+#   verified:     true  = build numbers were checked against the Citrix bulletin itself
+#                 false = taken from secondary reporting; re-check before relying on it
+#   exploited:    true when the CVE is in the CISA KEV catalog.
+#   Trains a bulletin does not mention are filled in only conservatively: EoL trains as
+#   unfixed, or a line commented "inferred" saying why. Anything else stays unlisted (UNKNOWN).
+#
+# Train keys: 12.1, 12.1-fips, 12.1-ndcpp, 13.0, 13.1, 13.1-fips, 13.1-ndcpp, 14.1, 14.1-fips
+# Update data_version whenever this file changes. The tool warns when it's >30 days old.
+
+data_version: "2026-10-13"
+
+lifecycle:
+  # status: supported | end_of_maintenance | end_of_life
+  - {train: "12.1", status: end_of_life}
+  - {train: "13.0", status: end_of_life}
+  - {train: "13.1", status: end_of_maintenance,
+     note: "EoM 2026-09-15, EoL 2027-09-15 per CTX241500", verified: true}
+  - {train: "13.1-fips", status: supported, note: "FIPS/NDcPP lifecycle differs; verify CTX241500", verified: false}
+  - {train: "13.1-ndcpp", status: supported, note: "FIPS/NDcPP lifecycle differs; verify CTX241500", verified: false}
+  - {train: "14.1", status: supported}
+  - {train: "14.1-fips", status: supported}
+
+advisories:
+  - id: CVE-2019-19781
+    title: Path traversal leading to unauthenticated RCE
+    bulletin: CTX267027
+    exploited: true
+    severity: critical
+    requires: []
+    fixed: {"12.1": "55.18", "13.0": "47.24"}
+    not_affected: ["13.1", "13.1-fips", "13.1-ndcpp", "14.1", "14.1-fips"]
+    verified: true
+
+  - id: CVE-2022-27518
+    title: Unauthenticated RCE (SAML SP or IdP)
+    bulletin: CTX474995
+    exploited: true
+    severity: critical
+    requires: [saml]
+    fixed: {"13.0": "58.32", "12.1": "65.25", "12.1-fips": "55.291", "12.1-ndcpp": "55.291"}
+    # Bulletin: 13.1 is unaffected. Inferred: 13.1 FIPS/NDcPP and the later 14.1 trains too.
+    not_affected: ["13.1", "13.1-fips", "13.1-ndcpp", "14.1", "14.1-fips"]
+    verified: true
+
+  - id: CVE-2023-3519
+    title: Unauthenticated RCE (Gateway/AAA)
+    bulletin: CTX561482
+    exploited: true
+    severity: critical
+    requires: [gateway_or_aaa]
+    fixed: {"13.0": "91.13", "13.1": "49.13", "13.1-fips": "37.159", "13.1-ndcpp": "37.159",
+            "12.1-fips": "55.297", "12.1-ndcpp": "55.297"}
+    not_affected: ["14.1", "14.1-fips"]
+    unfixed: ["12.1"]
+    verified: true
+
+  - id: CVE-2023-4966
+    title: Citrix Bleed - memory disclosure of session tokens (Gateway/AAA)
+    bulletin: CTX579459
+    exploited: true
+    severity: critical
+    requires: [gateway_or_aaa]
+    # Inferred: 14.1-fips from 14.1; the earliest 14.1-FIPS build is 66.68 (FIPS release
+    # notes, CTX696939).
+    fixed: {"13.0": "92.19", "13.1": "49.15", "14.1": "8.50", "14.1-fips": "8.50",
+            "13.1-fips": "37.164", "13.1-ndcpp": "37.164", "12.1-fips": "55.300",
+            "12.1-ndcpp": "55.300"}
+    unfixed: ["12.1"]
+    post_patch_actions:
+      - "kill aaa session -all"
+      - "kill icaconnection -all"
+      - "kill rnatsession -all"
+      - "kill pcoipConnection -all"
+      - "clear lb persistentSessions"
+    verified: true
+
+  - id: CVE-2023-6548
+    title: Authenticated (low-privilege) RCE on the management interface (NSIP/CLIP/SNIP)
+    bulletin: CTX584986
+    exploited: true
+    severity: medium
+    requires: []
+    # Inferred (bulletin lists neither): 13.1-ndcpp from 13.1-FIPS (shared build branch);
+    # 14.1-fips from 14.1 (every 14.1-FIPS build is far above 12.35).
+    fixed: {"14.1": "12.35", "14.1-fips": "12.35", "13.1": "51.15", "13.0": "92.21",
+            "13.1-fips": "37.176", "13.1-ndcpp": "37.176", "12.1-fips": "55.302",
+            "12.1-ndcpp": "55.302"}
+    unfixed: ["12.1"]
+    verified: true
+
+  - id: CVE-2023-6549
+    title: Memory overflow leading to DoS (Gateway/AAA)
+    bulletin: CTX584986
+    exploited: true
+    severity: high
+    requires: [gateway_or_aaa]
+    # Inferred (bulletin lists neither): 13.1-ndcpp from 13.1-FIPS (shared build branch);
+    # 14.1-fips from 14.1 (every 14.1-FIPS build is far above 12.35).
+    fixed: {"14.1": "12.35", "14.1-fips": "12.35", "13.1": "51.15", "13.0": "92.21",
+            "13.1-fips": "37.176", "13.1-ndcpp": "37.176", "12.1-fips": "55.302",
+            "12.1-ndcpp": "55.302"}
+    unfixed: ["12.1"]
+    verified: true
+
+  - id: CVE-2025-5777
+    title: CitrixBleed 2 - memory overread (Gateway/AAA)
+    bulletin: CTX693420
+    exploited: true
+    severity: critical
+    requires: [gateway_or_aaa]
+    # Inferred: 14.1-fips from 14.1; the earliest 14.1-FIPS build is 66.68 (FIPS release
+    # notes, CTX696939).
+    fixed: {"13.1": "58.32", "14.1": "43.56", "14.1-fips": "43.56", "13.1-fips": "37.235",
+            "13.1-ndcpp": "37.235", "12.1-fips": "55.328"}
+    unfixed: ["12.1", "13.0"]
+    post_patch_actions: ["kill icaconnection -all", "kill pcoipConnection -all"]
+    verified: true
+
+  - id: CVE-2025-6543
+    title: Memory overflow, exploited as a zero-day (Gateway/AAA)
+    bulletin: CTX694788
+    exploited: true
+    severity: critical
+    requires: [gateway_or_aaa]
+    # Inferred: 14.1-fips from 14.1; the earliest 14.1-FIPS build is 66.68 (FIPS release
+    # notes, CTX696939).
+    fixed: {"13.1": "59.19", "14.1": "47.46", "14.1-fips": "47.46", "13.1-fips": "37.236",
+            "13.1-ndcpp": "37.236"}
+    not_affected: ["12.1-fips"]
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2025-7775
+    title: Memory overflow leading to RCE
+    bulletin: CTX694938
+    exploited: true
+    severity: critical
+    requires: [gateway_or_aaa, ipv6_lb, hdx_content_routing]
+    requires_mode: any
+    # Inferred: 14.1-fips from 14.1; the earliest 14.1-FIPS build is 66.68 (FIPS release
+    # notes, CTX696939).
+    fixed: {"13.1": "59.22", "14.1": "47.48", "14.1-fips": "47.48", "13.1-fips": "37.241",
+            "13.1-ndcpp": "37.241", "12.1-fips": "55.330", "12.1-ndcpp": "55.330"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-3055
+    title: Memory overread when configured as a SAML IdP (leaks via NSC_TASS cookie)
+    bulletin: CTX696300
+    exploited: true
+    severity: critical
+    requires: [saml_idp]
+    # 14.1-60.58 is also a fix (one branch); 66.59 is conservative until per-branch ranges exist.
+    # Inferred: 14.1-fips from 14.1; the earliest 14.1-FIPS build is 66.68 (FIPS release
+    # notes, CTX696939).
+    fixed: {"13.1": "62.23", "14.1": "66.59", "14.1-fips": "66.59", "13.1-fips": "37.262",
+            "13.1-ndcpp": "37.262"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  # CVE-2026-4368 (CTX696300, Gateway/AAA session mix-up) affects only 14.1-66.54; omitted
+  # because one first-fixed build per train can't express a single-build range.
+
+  - id: CVE-2026-8451
+    title: Memory overread when configured as a SAML IdP
+    bulletin: CTX696604
+    exploited: false
+    severity: high
+    requires: [saml_idp]
+    fixed: {"13.1": "63.18", "14.1": "72.61", "14.1-fips": "72.61", "13.1-fips": "37.272",
+            "13.1-ndcpp": "37.272"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-8452
+    title: Memory overflow, vendor-rated DoS, exploited as unauthenticated RCE (Gateway/AAA)
+    bulletin: CTX696604
+    exploited: true
+    severity: critical
+    requires: [gateway_or_aaa]
+    fixed: {"13.1": "63.18", "14.1": "72.61", "14.1-fips": "72.61", "13.1-fips": "37.272",
+            "13.1-ndcpp": "37.272"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-10816
+    title: Unauthenticated arbitrary file read via NSIP/CLIP or a SNIP with management access
+    bulletin: CTX696604
+    exploited: false
+    severity: high
+    requires: []
+    fixed: {"13.1": "63.18", "14.1": "72.61", "14.1-fips": "72.61", "13.1-fips": "37.272",
+            "13.1-ndcpp": "37.272"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-19490
+    title: Authentication bypass (Gateway/AAA or SAML; bulletin also covers CVE-2026-19489)
+    bulletin: CTX696939
+    exploited: true
+    severity: critical
+    # Superset: the bulletin's gate is Gateway/AAA, SAML action plus Gateway/AAA, or SAML
+    # action alone depending on train and build.
+    requires: [gateway_or_aaa, saml]
+    requires_mode: any
+    fixed: {"13.1": "63.21", "14.1": "73.32", "14.1-fips": "73.32", "13.1-fips": "37.277",
+            "13.1-ndcpp": "37.277"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-88771
+    title: Command injection in default configuration (bulletin also covers DTLS overflow CVE-2026-88772)
+    bulletin: CTX697096
+    exploited: true
+    severity: critical
+    requires: []
+    fixed: {"13.1": "64.23", "14.1": "73.37", "14.1-fips": "73.37", "13.1-fips": "37.279",
+            "13.1-ndcpp": "37.279"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-88779
+    title: Memory overflow leading to DoS (SAML SP or IdP)
+    bulletin: CTX697174
+    exploited: true
+    severity: high
+    requires: [saml]
+    fixed: {"13.1": "64.28", "14.1": "73.41", "14.1-fips": "73.41", "13.1-fips": "37.282",
+            "13.1-ndcpp": "37.282"}
+    unfixed: ["12.1", "13.0"]
+    verified: true
+
+  - id: CVE-2026-107406
+    title: Memory overflow leading to RCE or DoS (SAML SP or IdP)
+    bulletin: CTX697191
+    exploited: false
+    severity: critical
+    # Superset: from the CVE-2026-88771 fix up to the CVE-2026-88779 fix (14.1 73.37-73.41,
+    # 13.1 64.23-64.28, 13.1 FIPS/NDcPP 37.279-37.282) only a SAML IdP is affected.
+    requires: [saml]
+    fixed: {"13.1": "64.29", "14.1": "73.46", "14.1-fips": "73.46", "13.1-fips": "37.283",
+            "13.1-ndcpp": "37.283"}
+    unfixed: ["12.1", "13.0"]
+    verified: true

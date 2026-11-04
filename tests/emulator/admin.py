@@ -13,17 +13,17 @@ import yaml
 from fastapi import FastAPI
 from sqlalchemy import create_engine
 
-from netrescale.config import Config
-from netrescale.daemon.service import Service
-from netrescale.detect.findings import Finding
-from netrescale.detect.severity import Severity
-from netrescale.runtime import Runtime
-from netrescale.secrets.base import Credential
-from netrescale.secrets.vault import Vault, generate_key
-from netrescale.store.database import Database
-from netrescale.store.snapshots import FileSnapshotStore
-from netrescale.web.app import create_app
-from netrescale.web.auth import set_password, update_user
+from scalar.config import Config
+from scalar.daemon.service import Service
+from scalar.detect.findings import Finding
+from scalar.detect.severity import Severity
+from scalar.runtime import Runtime
+from scalar.secrets.base import Credential
+from scalar.secrets.vault import Vault, generate_key
+from scalar.store.database import Database
+from scalar.store.snapshots import FileSnapshotStore
+from scalar.web.app import create_app
+from scalar.web.auth import set_password, update_user
 from tests.emulator.nitro import FakeNitro
 
 TEST_PASSWORD = "administration-browser-test-only"
@@ -57,7 +57,7 @@ def create_test_app() -> FastAPI:
     config_path.write_text(yaml.safe_dump(cfg.model_dump(mode="json")))
     key = generate_key()
     Vault.create(cfg.paths.vault, key).set(
-        "nr_nitro", Credential("nr_nitro", "nitro-password"), actor="test"
+        "sc_nitro", Credential("sc_nitro", "nitro-password"), actor="test"
     )
     set_password(root / "web-users.json", "test-admin", TEST_PASSWORD)
     update_user(root / "web-users.json", "test-viewer", password=TEST_PASSWORD, role="viewer")

@@ -8,16 +8,16 @@ import pytest
 import yaml
 from sqlalchemy import create_engine
 
-from netrescale.administration import Administration
-from netrescale.config import Config
-from netrescale.control import ControlError, ControlRequest
-from netrescale.runtime import Runtime
-from netrescale.secrets.base import Credential
-from netrescale.secrets.vault import Vault, generate_key
-from netrescale.store.database import Database
-from netrescale.transport.nitro import PermissionDenied
-from netrescale.transport.tls import PinMismatch
-from netrescale.web.auth import load_accounts, set_password, update_user
+from scalar.administration import Administration
+from scalar.config import Config
+from scalar.control import ControlError, ControlRequest
+from scalar.runtime import Runtime
+from scalar.secrets.base import Credential
+from scalar.secrets.vault import Vault, generate_key
+from scalar.store.database import Database
+from scalar.transport.nitro import PermissionDenied
+from scalar.transport.tls import PinMismatch
+from scalar.web.auth import load_accounts, set_password, update_user
 from tests.emulator.nitro import FakeNitro
 
 PASSWORD = "administration-test-password"
@@ -93,7 +93,7 @@ async def test_disabling_spki_allows_ca_mode_device_operations(admin) -> None:  
 
 async def test_pin_inspection_reports_network_restrictions(admin,
                                                          monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
-    from netrescale import administration
+    from scalar import administration
 
     handler, fake = admin
 
@@ -130,7 +130,7 @@ async def test_empty_inventory_can_be_validated_and_saved(admin) -> None:  # typ
     await call(handler, "settings.save", parameters)
     saved = yaml.safe_load(handler.rt.config_path.read_text())
     assert saved["devices"] == [] and saved["ha_pairs"] == []
-    assert handler.rt.provider.vault.names() == ["nr_nitro"]
+    assert handler.rt.provider.vault.names() == ["sc_nitro"]
 
 
 @pytest.mark.linux
@@ -140,10 +140,10 @@ async def test_daemon_can_replace_read_only_backup_after_cli_admin(admin) -> Non
     previous = handler.rt.cfg.paths.vault.read_bytes()
     backup.write_bytes(b"old backup")
     backup.chmod(0o400)
-    await call(handler, "credentials.save", {"name": "nr_nitro", "username": "nr_nitro",
+    await call(handler, "credentials.save", {"name": "sc_nitro", "username": "sc_nitro",
                                              "password": "updated-from-browser"})
     assert backup.read_bytes() == previous
-    assert handler.rt.provider.vault.get("nr_nitro").reveal_password() == "updated-from-browser"
+    assert handler.rt.provider.vault.get("sc_nitro").reveal_password() == "updated-from-browser"
 
 
 async def test_browser_log_hunt_preserves_high_byte_detection(admin) -> None:  # type: ignore[no-untyped-def]
@@ -195,7 +195,7 @@ async def test_log_fetch_preserves_permission_and_lockout_guards(admin) -> None:
         await call(handler, "logs.fetch", {"device": "gateway"})
     assert len([request for request in fake.requests if request.url.path.endswith("systemfile")]) == 1
     fake.denied.clear()
-    fake.users["nr_nitro"] = "changed-at-appliance"
+    fake.users["sc_nitro"] = "changed-at-appliance"
     with pytest.raises(ControlError, match="login rejected"):
         await call(handler, "logs.fetch", {"device": "gateway"})
     attempts = fake.login_attempts
@@ -275,7 +275,7 @@ async def test_log_fetch_rejects_arbitrary_paths(admin, parameters) -> None:  # 
 
 
 def test_retained_device_logs_are_bounded_and_integrity_checked(tmp_path: Path) -> None:
-    from netrescale.collect.device_logs import DeviceLogStore
+    from scalar.collect.device_logs import DeviceLogStore
 
     logs = DeviceLogStore(tmp_path)
     metadata = logs.put("gateway", "nslog", b"old line\n" * 12000 + b"latest line\n")
@@ -325,7 +325,7 @@ def admin(tmp_path: Path):  # type: ignore[no-untyped-def]
     config_path.write_text(yaml.safe_dump(cfg.model_dump(mode="json")))
     key = generate_key()
     Vault.create(cfg.paths.vault, key).set(
-        "nr_nitro", Credential("nr_nitro", "nitro-password"), "test"
+        "sc_nitro", Credential("sc_nitro", "nitro-password"), "test"
     )
     users = tmp_path / "web-users.json"
     set_password(users, "admin", PASSWORD)
@@ -423,7 +423,7 @@ async def test_credentials_write_only_and_in_use_deletion(admin) -> None:  # typ
     assert handler.rt.provider.vault.get("other").reveal_password() == password
     await call(handler, "credentials.delete", {"name": "other"})
     with pytest.raises(ControlError, match="referenced"):
-        await call(handler, "credentials.delete", {"name": "nr_nitro"})
+        await call(handler, "credentials.delete", {"name": "sc_nitro"})
 
 
 async def test_credential_choices_distinguish_passwords_without_revealing_secrets(admin) -> None:  # type: ignore[no-untyped-def]
@@ -433,7 +433,7 @@ async def test_credential_choices_distinguish_passwords_without_revealing_secret
                                              "ssh_private_key": private_key, "create": True})
     result = await call(handler, "credentials.list")
     entries = {item["name"]: item for item in result["items"]}
-    assert entries["nr_nitro"]["has_password"] is True
+    assert entries["sc_nitro"]["has_password"] is True
     assert entries["ssh-only"]["has_password"] is False
     assert entries["ssh-only"]["has_ssh_key"] is True
     assert private_key not in json.dumps(result)
@@ -466,11 +466,11 @@ async def test_read_only_device_operations_share_lockout_guard(admin) -> None:  
         request.method == "GET" or request.url.path.endswith(("/login", "/logout"))
         for request in fake.requests
     )
-    fake.users["nr_nitro"] = "new-password"
-    result = await call(handler, "credentials.test", {"name": "nr_nitro"})
+    fake.users["sc_nitro"] = "new-password"
+    result = await call(handler, "credentials.test", {"name": "sc_nitro"})
     assert not result["items"][0]["ok"]
     attempts = fake.login_attempts
-    await call(handler, "credentials.test", {"name": "nr_nitro"})
+    await call(handler, "credentials.test", {"name": "sc_nitro"})
     assert fake.login_attempts == attempts
 
 
@@ -489,7 +489,7 @@ async def test_backup_restore_preserves_host_key_and_redacts_audit(admin) -> Non
     await call(
         handler,
         "credentials.save",
-        {"name": "nr_nitro", "username": "nr_nitro", "password": "different-password"},
+        {"name": "sc_nitro", "username": "sc_nitro", "password": "different-password"},
     )
     await call(
         handler,
@@ -497,7 +497,7 @@ async def test_backup_restore_preserves_host_key_and_redacts_audit(admin) -> Non
         {"passphrase": PASSWORD, "backup": backup["content_base64"], "confirmation": "RESTORE"},
     )
     assert paused and handler.rt.provider.key == key
-    assert handler.rt.provider.vault.get("nr_nitro").reveal_password() == "nitro-password"
+    assert handler.rt.provider.vault.get("sc_nitro").reveal_password() == "nitro-password"
     assert PASSWORD not in handler.audit_path.read_text()
 
 
@@ -512,7 +512,7 @@ async def test_offline_tools_and_generated_setup_are_available(admin) -> None:  
     assert (await call(handler, "setup.rsyslog"))["content"]
     assert (await call(handler, "setup.firewall"))["content"]
     assert (
-        "nr_nitro"
+        "sc_nitro"
         in (
             await call(handler, "setup.snippets", {"device": "gateway", "server_ip": "192.0.2.100"})
         )["content"]
@@ -522,8 +522,8 @@ async def test_offline_tools_and_generated_setup_are_available(admin) -> None:  
 @pytest.mark.parametrize("edit", [
     lambda d: d["devices"][0].update(nsip="198.51.100.9"),
     lambda d: d["devices"][0].update(ca_bundle="/tmp/attacker.pem"),
-    lambda d: d["devices"][0].update(nitro_credential="local:nr_other"),
-    lambda d: d["defaults"].update(sweep_credential="local:nr_other"),
+    lambda d: d["devices"][0].update(nitro_credential="local:sc_other"),
+    lambda d: d["defaults"].update(sweep_credential="local:sc_other"),
     lambda d: d["devices"].append({**d["devices"][0], "name": "added", "nsip": "198.51.100.9"}),
 ])
 async def test_web_cannot_redirect_appliance_credentials(admin, edit) -> None:  # type: ignore[no-untyped-def]

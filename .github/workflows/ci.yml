@@ -14,16 +14,16 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: netrescale
+          POSTGRES_USER: scalar
           POSTGRES_PASSWORD: integration-test-only
-          POSTGRES_DB: netrescale
+          POSTGRES_DB: scalar
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U netrescale"
+          --health-cmd "pg_isready -U scalar"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      NETRESCALE_TEST_DATABASE_URL: postgresql+psycopg://netrescale:integration-test-only@127.0.0.1:5432/netrescale
+      SCALAR_TEST_DATABASE_URL: postgresql+psycopg://scalar:integration-test-only@127.0.0.1:5432/scalar
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5

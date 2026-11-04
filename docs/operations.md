@@ -2,12 +2,12 @@
 
 ## Dashboard access
 
-The `netrescale-web` service is separate from the appliance-monitoring daemon. It listens
+The `scalar-web` service is separate from the appliance-monitoring daemon. It listens
 on `127.0.0.1:8080` by default. Use an SSH tunnel/VS Code forwarding, or an HTTPS reverse
 proxy with `web.public_url` configured. Temporary direct HTTP is an explicit opt-in for
-trusted internal networks via `netrescale web allow-http`; it is not enabled by default.
+trusted internal networks via `scalar web allow-http`; it is not enabled by default.
 
-`sudo netrescale web allow-http --host <server-ip> --allow-network <client-cidr> --restart`
+`sudo scalar web allow-http --host <server-ip> --allow-network <client-cidr> --restart`
 backs up config, binds the server address, enables HTTP, and adds the client network to a
 dedicated systemd drop-in. Repeat `--allow-network` as needed. Existing firewall rules are
 not modified; both the host firewall and systemd allowlist must permit the client. HTTP
@@ -15,14 +15,14 @@ transmits passwords, session cookies, and submitted credentials unencrypted. Rea
 NetScaler access and appliance TLS pinning are unchanged.
 
 ```bash
-sudo netrescale web user-set admin
-sudo systemctl enable --now netrescale-web
-sudo systemctl status netrescale-web
-journalctl -u netrescale-web -n 50
+sudo scalar web user-set admin
+sudo systemctl enable --now scalar-web
+sudo systemctl status scalar-web
+journalctl -u scalar-web -n 50
 ```
 
 `web user-set` prompts for a password; there are no initial/default credentials. Web users
-and Argon2id hashes are stored in `/var/lib/netrescale/web-users.json` (0600, service user).
+and Argon2id hashes are stored in `/var/lib/scalar/web-users.json` (0600, service user).
 Administrators can manage settings, users, vault entries and maintenance. Operators can run
 read-only probes/hunts and queue notification tests; viewers can only inspect dashboard data.
 No role can retrieve stored appliance passwords or perform mutating NITRO calls through the UI.
@@ -46,9 +46,9 @@ rsyslog receives NetScaler syslog over **plain TCP** (`imtcp`, no TLS). Anyone o
 path can read or inject log lines, so the syslog network is part of the trust boundary:
 
 - Keep the NetScaler-to-SCALAR syslog path on an isolated management network.
-- Apply the nftables rules from `netrescale rsyslog-config --nft`. Without them, any host that
+- Apply the nftables rules from `scalar rsyslog-config --nft`. Without them, any host that
   can reach 514/tcp can write to the quarantine file. `install.sh` installs a logrotate rule
-  (`/etc/logrotate.d/netrescale-syslog`) that caps that file at 50 MB x 3, but it is a
+  (`/etc/logrotate.d/scalar-syslog`) that caps that file at 50 MB x 3, but it is a
   safety net, not a substitute for the firewall.
 - Treat injected lines as untrusted: detection rules never evaluate log content, but a
   forged line from an allowlisted source address can still raise or mask findings.
@@ -66,13 +66,13 @@ Login attempts are throttled per source address and per username.
   that the CLI, config, units, and database are verified.
 2. Configure one secondary in `mode: observe`, notification sinks, syslog allowlists and the
   systemd egress drop-in. Pin its management TLS key and store its NITRO credential.
-3. Run `sudo netrescale probe <device>` during a change window. This checks read-only NITRO
+3. Run `sudo scalar probe <device>` during a change window. This checks read-only NITRO
   permissions and response parsing; it does not run SSH or change appliance configuration.
 4. Apply the printed syslog setup manually, activate the generated rsyslog configuration,
   and persist the inventory firewall rules. Start the service.
-5. Confirm `systemctl is-active netrescale`, then wait for the first poll and require
-  `sudo -u netrescale netrescale status` to report `healthy`.
-6. Run `sudo -u netrescale netrescale notify test` and confirm actual delivery through every
+5. Confirm `systemctl is-active scalar`, then wait for the first poll and require
+  `sudo -u scalar scalar status` to report `healthy`.
+6. Run `sudo -u scalar scalar notify test` and confirm actual delivery through every
   enabled sink. A queued notification is not delivery proof. Check `findings`,
   `config history`, and archive `search` output.
 7. Verify real command, Gateway and shell-log formats against the rule pack. Then add the
@@ -87,12 +87,12 @@ the setup checks after 30 seconds, doubling up to every five minutes. Configurat
 still wait for **Save settings** or a restart. Other worker failures stop the daemon so systemd
 can restart it. The unit allows 10 starts in 15 minutes (`StartLimitBurst`,
 `StartLimitIntervalSec`), so a crash loop ends in the `failed` state. Watch
-`systemctl is-failed netrescale` (or add an `OnFailure=` notifier), fix the cause, then run
-`sudo systemctl reset-failed netrescale` and start it. A singleton lock prevents
+`systemctl is-failed scalar` (or add an `OnFailure=` notifier), fix the cause, then run
+`sudo systemctl reset-failed scalar` and start it. A singleton lock prevents
 two daemons from consuming the same files. Password changes reload automatically; **Save settings**
 activates changes in one request. Worker-bound changes refresh monitoring workers without
 resetting credential lockout state or restarting the web app. Manual config edits can still
-be activated with `sudo systemctl restart netrescale netrescale-web`.
+be activated with `sudo systemctl restart scalar scalar-web`.
 
 ## Monitoring the monitor
 
@@ -213,11 +213,11 @@ whole (rejected or missing FIM credential, unreachable appliance) raises `fim-un
 
 To enable it on a device:
 
-1. Run `sudo netrescale snippets <device> --server-ip <ip>` with `fim: {enabled: true}` set on
-   the device. Apply the printed `nr_fim` account and its three command policies on the
-   primary. A listing-only account (leave out `netrescale_fim_read`) works too: files are then
+1. Run `sudo scalar snippets <device> --server-ip <ip>` with `fim: {enabled: true}` set on
+   the device. Apply the printed `sc_fim` account and its three command policies on the
+   primary. A listing-only account (leave out `scalar_fim_read`) works too: files are then
    compared on size and mtime only, and the refused reads are reported as a coverage gap.
-2. `sudo netrescale cred set nr_fim`, then `sudo netrescale cred test nr_fim`.
+2. `sudo scalar cred set sc_fim`, then `sudo scalar cred test sc_fim`.
 3. Before the first rollout, run the read-only feasibility probe against a secondary of each
    firmware train (`tests/prod/test_fim_feasibility.py`, marker `prod_probe`). It records which
    paths the account may list and read and what a missing directory looks like on that build.
@@ -227,7 +227,7 @@ To enable it on a device:
 ```yaml
 defaults:
   fim:
-    credential: local:nr_fim   # default; a separate account, so nr_nitro stays narrow
+    credential: local:sc_fim   # default; a separate account, so sc_nitro stays narrow
     webroot_interval: 600      # Tier B walk, 300-900 s
     rehash_interval: 900       # re-hash unchanged files, 300-3600 s
 devices:
@@ -248,12 +248,12 @@ Use copies of exported configuration and logs. These commands do not need the da
 PostgreSQL, vault, or appliance connectivity:
 
 ```bash
-netrescale config diff before.ns.conf after.ns.conf
-netrescale config diff before.ns.conf after.ns.conf --json > config-diff.json
-netrescale hunt ns.log ns.log.0.gz --source nslog --device ns-gw-01 \
+scalar config diff before.ns.conf after.ns.conf
+scalar config diff before.ns.conf after.ns.conf --json > config-diff.json
+scalar hunt ns.log ns.log.0.gz --source nslog --device ns-gw-01 \
   --admin-networks 10.20.0.0/16 --admin-users admin1
-netrescale hunt ns.log --source nslog --device ns-gw-01 --json > hunt.jsonl
-netrescale exposure --version-string "NetScaler NS14.1: Build 47.46.nc" --json \
+scalar hunt ns.log --source nslog --device ns-gw-01 --json > hunt.jsonl
+scalar exposure --version-string "NetScaler NS14.1: Build 47.46.nc" --json \
   > exposure.json
 ```
 
@@ -279,13 +279,13 @@ commands parse copies and do not provide acquisition, legal hold, or malware ana
 ### Retained deployed evidence
 
 ```bash
-sudo -u netrescale netrescale status --json > status.json
-sudo -u netrescale netrescale findings --days 30 --min-severity low --json > findings.json
-sudo -u netrescale netrescale config history ns-gw-01
-sudo -u netrescale netrescale config history ns-gw-01 --show 3
-sudo -u netrescale netrescale search CMD_EXECUTED ns-gw-01 --days 30 \
+sudo -u scalar scalar status --json > status.json
+sudo -u scalar scalar findings --days 30 --min-severity low --json > findings.json
+sudo -u scalar scalar config history ns-gw-01
+sudo -u scalar scalar config history ns-gw-01 --show 3
+sudo -u scalar scalar search CMD_EXECUTED ns-gw-01 --days 30 \
   > archive-hits.jsonl
-sudo -u netrescale netrescale archive verify ns-gw-01 --days 30 \
+sudo -u scalar scalar archive verify ns-gw-01 --days 30 \
   --expected-head <externally-preserved-head>
 ```
 
@@ -312,15 +312,15 @@ even redacted exports as sensitive incident data.
 **Sensitive settings are host-managed.** The browser cannot change appliance addresses
 (`nsip`), TLS trust files (`ca_bundle`), credential references, new appliances, or
 SMTP/SIEM/webhook destinations; the save is refused with a 403 naming the field. Make
-those edits in `/etc/netrescale/config.yaml` on the host. Setting
+those edits in `/etc/scalar/config.yaml` on the host. Setting
 `web.allow_sensitive_settings: true` (host edit only) lifts the restriction; leave it off
 unless every dashboard administrator is trusted with the ability to redirect where
 appliance and mail credentials are sent. TLS pins can still be saved from the browser.
 
-The daemon listens on `/run/netrescale/control.sock` (0600, service user), verifies the peer
+The daemon listens on `/run/scalar/control.sock` (0600, service user), verifies the peer
 UID and the operator's current role, and allows only known actions. The web process checks
 role, session, origin and CSRF before forwarding requests. It has no root shell or vault key.
-Actions are serialized and recorded in `/var/lib/netrescale/administration.jsonl`; secret
+Actions are serialized and recorded in `/var/lib/scalar/administration.jsonl`; secret
 values and request bodies are not logged. Protect and rotate/archive this audit file as part
 of host operations; it is not included in indexed-event retention.
 
@@ -472,7 +472,7 @@ sealed key before process startup.
   Delivery is at least once: a crash after a remote send but before acknowledgement can
   produce a duplicate. Pending notifications are not deleted by findings retention.
 - Original log bytes are stored in daily per-device zstd files under
-  `/var/lib/netrescale/archive`. The manifest records frame offsets, hashes, and a chained
+  `/var/lib/scalar/archive`. The manifest records frame offsets, hashes, and a chained
   digest. Each daily digest carries archive chain heads to configured notification sinks.
   Preserve SIEM copies as external anchors; a local privileged attacker can rewrite local files.
 - `archive verify <device> --expected-head <head>` checks against an external anchor. A
@@ -481,7 +481,7 @@ sealed key before process startup.
   Source syslog files are deleted after `syslog.source_days` only when fully acknowledged.
   Snapshot history is retained; include it when sizing storage. Unknown-sender quarantine
   files need administrator review/rotation and are not processed by the detection pipeline.
-- Monitor disk use with `df -h /var/lib/netrescale /var/log/netrescale` and `df -i`.
+- Monitor disk use with `df -h /var/lib/scalar /var/log/scalar` and `df -i`.
   Size PostgreSQL and raw storage from pilot traffic; do not assume a fixed estate-wide rate.
 
 ## Polling and TLS failures
@@ -502,8 +502,8 @@ enables HTTP, obsolete TLS protocols, or unverified HTTPS. A verified pin saved 
 inspection dialog explicitly re-enables SPKI pinning.
 
 The dashboard's `web allow-http` client-network allowance does not grant the monitoring
-daemon access to appliances. If `systemctl show netrescale -p IPAddressAllow` lists only
-localhost, run `sudo netrescale device allow-network --restart`. It grants exact management
+daemon access to appliances. If `systemctl show scalar -p IPAddressAllow` lists only
+localhost, run `sudo scalar device allow-network --restart`. It grants exact management
 addresses from the saved inventory via `30-appliance-egress.conf`; the default deny remains.
 Re-run after inventory changes. Existing manual allowances in other drop-ins are preserved.
 
@@ -515,7 +515,7 @@ lockout guard. Do not repeatedly restart/retest an account rejected by an applia
 
 ## Credentials
 
-- **Rotate:** run `sudo netrescale cred rotate <name>` after changing the password on the
+- **Rotate:** run `sudo scalar cred rotate <name>` after changing the password on the
   NetScaler. It stores the new password and immediately tests it on every device that
   uses the entry.
 - **Blocked credentials:** a credential the appliance rejected is blocked on that device
@@ -528,25 +528,25 @@ lockout guard. Do not repeatedly restart/retest an account rejected by an applia
 ## Backup and recovery drill (do this once, on a VM)
 
 ```bash
-sudo netrescale vault backup /root/vault.bak          # passphrase-protected
+sudo scalar vault backup /root/vault.bak          # passphrase-protected
 # on a fresh host after install.sh:
-sudo netrescale vault restore /root/vault.bak          # re-seals the key for the new host
-sudo systemctl start netrescale
+sudo scalar vault restore /root/vault.bak          # re-seals the key for the new host
+sudo systemctl start scalar
 ```
 
 The `bootstrap` escrow file holds only the master key. With the passphrase, it decrypts a
-vault file copied from the old server's `/var/lib/netrescale/vault`.
+vault file copied from the old server's `/var/lib/scalar/vault`.
 
-Also back up `/etc/netrescale`, `/var/lib/netrescale` and the egress/firewall/rsyslog
+Also back up `/etc/scalar`, `/var/lib/scalar` and the egress/firewall/rsyslog
 configuration. Stop the service or use a coordinated filesystem snapshot when copying
 state so manifests and frames remain consistent. Make a PostgreSQL backup separately:
 
 ```bash
-sudo -u postgres pg_dump -Fc netrescale > netrescale-database.dump
+sudo -u postgres pg_dump -Fc scalar > scalar-database.dump
 ```
 
 Protect that dump and all state copies as sensitive. On a fresh host, restore the database
-as PostgreSQL administrator, restore state with `netrescale:netrescale` ownership, and run
+as PostgreSQL administrator, restore state with `scalar:scalar` ownership, and run
 the vault restore procedure above. Check archive integrity and notification delivery before
 resuming the fleet rollout.
 
@@ -564,9 +564,9 @@ Legacy 0.1 JSONL findings remain on disk and are not automatically imported into
 ## Rekey
 
 ```bash
-sudo systemctl stop netrescale
-sudo netrescale vault rekey /root/new-escrow.json
-sudo systemctl start netrescale
+sudo systemctl stop scalar
+sudo scalar vault rekey /root/new-escrow.json
+sudo systemctl start scalar
 ```
 
 Old escrow files and backups no longer match the new key. Replace them.
@@ -576,19 +576,19 @@ Old escrow files and backups no longer match the new key. Replace them.
 Re-seal the key so it is bound to the TPM as well as the host key:
 
 ```bash
-sudo systemd-creds decrypt --name=netrescale.vault-key \
-  /etc/credstore.encrypted/netrescale.vault-key - \
-  | sudo systemd-creds encrypt --with-key=host+tpm2 --name=netrescale.vault-key - \
-      /etc/credstore.encrypted/netrescale.vault-key.new
-sudo mv /etc/credstore.encrypted/netrescale.vault-key.new /etc/credstore.encrypted/netrescale.vault-key
-sudo systemctl restart netrescale
+sudo systemd-creds decrypt --name=scalar.vault-key \
+  /etc/credstore.encrypted/scalar.vault-key - \
+  | sudo systemd-creds encrypt --with-key=host+tpm2 --name=scalar.vault-key - \
+      /etc/credstore.encrypted/scalar.vault-key.new
+sudo mv /etc/credstore.encrypted/scalar.vault-key.new /etc/credstore.encrypted/scalar.vault-key
+sudo systemctl restart scalar
 ```
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---|---|
-| Service won't start | `journalctl -u netrescale -b`. A missing credential usually means `bootstrap` wasn't run, or the sealed file was created on another host |
+| Service won't start | `journalctl -u scalar -b`. A missing credential usually means `bootstrap` wasn't run, or the sealed file was created on another host |
 | `health-device-blocked` finding | The appliance rejected the password. Fix it on the appliance or vault side, then run `cred rotate` |
 | `TLS key changed` (critical) | Expected after a cert/key renewal: verify with the appliance team, then run `device pin` and update `spki_pin`. **Otherwise treat it as an incident** |
 | `health-device-unreachable` | Network, the `IPAddressAllow=` list in the unit, NITRO reachability, cmdPolicy (`PermissionDenied`) |
@@ -597,5 +597,5 @@ sudo systemctl restart netrescale
 | `monitor-coverage-reduced` | Confirm with the named administrator that the pause or settings change was intended; check `administration.jsonl` |
 | `syslog-batch-quarantined` | Review the batch in `pending/quarantine/` and its raw lines with archive `search`; the error names the database failure |
 | `exposure-unknown-*` | The device's train is missing from the advisory data; check the Citrix bulletins and treat the device as exposed until confirmed fixed |
-| Unit is `failed` after restarts | `journalctl -u netrescale -b`; fix the cause, then `systemctl reset-failed netrescale` |
-| Sandboxing check | `systemd-analyze security netrescale` (target < 2.0) |
+| Unit is `failed` after restarts | `journalctl -u scalar -b`; fix the cause, then `systemctl reset-failed scalar` |
+| Sandboxing check | `systemd-analyze security scalar` (target < 2.0) |

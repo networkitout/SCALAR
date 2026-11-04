@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from netrescale.control import ControlClient, ControlError, ControlRequest, ControlServer
+from scalar.control import ControlClient, ControlError, ControlRequest, ControlServer
 
 requires_peercred = pytest.mark.skipif(
     not hasattr(__import__("socket"), "SO_PEERCRED"), reason="needs Linux SO_PEERCRED")
@@ -72,7 +72,7 @@ async def test_control_preserves_unexpected_existing_file(tmp_path: Path) -> Non
 
 
 def test_peer_identity_fails_closed() -> None:
-    from netrescale.control import peer_uid
+    from scalar.control import peer_uid
 
     class Broken:
         def getsockopt(self, *_args: object) -> bytes:

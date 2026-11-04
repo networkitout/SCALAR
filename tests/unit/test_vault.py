@@ -8,9 +8,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from netrescale.redact import registry
-from netrescale.secrets.base import Credential, CredentialError
-from netrescale.secrets.escrow import (
+from scalar.redact import registry
+from scalar.secrets.base import Credential, CredentialError
+from scalar.secrets.escrow import (
     EscrowError,
     KdfParams,
     make_backup,
@@ -18,7 +18,7 @@ from netrescale.secrets.escrow import (
     unwrap_key,
     wrap_key,
 )
-from netrescale.secrets.resolver import (
+from scalar.secrets.resolver import (
     CredentialBlocked,
     CredentialRef,
     LocalVaultProvider,
@@ -26,7 +26,7 @@ from netrescale.secrets.resolver import (
     UnknownScheme,
     stale_entries,
 )
-from netrescale.secrets.vault import (
+from scalar.secrets.vault import (
     Vault,
     VaultEntryNotFound,
     VaultError,
@@ -48,24 +48,24 @@ def vault(tmp_path: Path, key: bytes) -> Vault:
     return Vault.create(tmp_path / "vault", key)
 
 
-def cred(user: str = "nr_nitro", pw: str = "s3cret-Pa55") -> Credential:
+def cred(user: str = "sc_nitro", pw: str = "s3cret-Pa55") -> Credential:
     return Credential(user, pw)
 
 
 def test_roundtrip_and_reopen(vault: Vault, key: bytes) -> None:
-    vault.set("nr_nitro", cred(), actor="uid:1000")
+    vault.set("sc_nitro", cred(), actor="uid:1000")
     reopened = Vault.open(vault.path, key)
-    assert reopened.get("nr_nitro") == cred()
-    assert reopened.names() == ["nr_nitro"]
-    meta = reopened.meta("nr_nitro")
+    assert reopened.get("sc_nitro") == cred()
+    assert reopened.names() == ["sc_nitro"]
+    meta = reopened.meta("sc_nitro")
     assert meta.rotated_by == "uid:1000"
 
 
 def test_file_never_contains_plaintext(vault: Vault) -> None:
-    vault.set("nr_sweep", cred("nr_sweep", "hunter2-very-secret"), actor="t")
+    vault.set("sc_sweep", cred("sc_sweep", "hunter2-very-secret"), actor="t")
     raw = vault.path.read_bytes()
     assert b"hunter2-very-secret" not in raw
-    assert b"nr_sweep" in raw  # names are metadata, intentionally visible
+    assert b"sc_sweep" in raw  # names are metadata, intentionally visible
     assert b'"username"' not in raw
 
 
@@ -130,7 +130,7 @@ def test_failed_write_leaves_old_vault_intact(
     def boom(*_a: object, **_k: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr("netrescale.secrets.vault.os.replace", boom)
+    monkeypatch.setattr("scalar.secrets.vault.os.replace", boom)
     with pytest.raises(OSError):
         vault.set("a", cred(pw="new-pw-xxxx"), actor="t")
     assert vault.path.read_bytes() == before
@@ -208,15 +208,15 @@ def test_short_passphrase_rejected(key: bytes) -> None:
 
 
 def test_backup_restore_on_new_host(vault: Vault, key: bytes, tmp_path: Path) -> None:
-    vault.set("nr_nitro", cred(), actor="t")
-    vault.set("nr_sweep", cred("nr_sweep", "sweep-password"), actor="t")
+    vault.set("sc_nitro", cred(), actor="t")
+    vault.set("sc_sweep", cred("sc_sweep", "sweep-password"), actor="t")
     bundle = make_backup(vault, key, PASSPHRASE, FAST_KDF)
     assert b"sweep-password" not in bundle
 
     dest = tmp_path / "newhost" / "vault"
     _restored, restored_key = restore_backup(bundle, PASSPHRASE, dest)
     assert restored_key == key
-    assert Vault.open(dest, key).get("nr_sweep") == cred("nr_sweep", "sweep-password")
+    assert Vault.open(dest, key).get("sc_sweep") == cred("sc_sweep", "sweep-password")
     with pytest.raises(EscrowError):
         restore_backup(bundle, "the wrong passphrase!!", tmp_path / "other" / "vault")
 
@@ -225,11 +225,11 @@ def test_backup_restore_on_new_host(vault: Vault, key: bytes, tmp_path: Path) ->
 
 
 def test_resolver_and_lockout_guard(vault: Vault) -> None:
-    vault.set("nr_nitro", cred(), actor="t")
+    vault.set("sc_nitro", cred(), actor="t")
     r = Resolver([LocalVaultProvider(vault)])
-    assert r.resolve("local:nr_nitro", device="ns1") == cred()
+    assert r.resolve("local:sc_nitro", device="ns1") == cred()
 
-    ref = CredentialRef.parse("local:nr_nitro")
+    ref = CredentialRef.parse("local:sc_nitro")
     r.guard.record_rejection("ns1", ref)
     with pytest.raises(CredentialBlocked):
         r.resolve(ref, device="ns1")
@@ -239,26 +239,26 @@ def test_resolver_and_lockout_guard(vault: Vault) -> None:
 
 
 def test_lockout_only_released_when_credential_changes(vault: Vault) -> None:
-    vault.set("nr_nitro", cred(), actor="first")
+    vault.set("sc_nitro", cred(), actor="first")
     resolver = Resolver([LocalVaultProvider(vault)])
-    ref = CredentialRef.parse("local:nr_nitro")
+    ref = CredentialRef.parse("local:sc_nitro")
     resolver.resolve(ref, device="ns1")
     resolver.guard.record_rejection("ns1", ref)
 
     vault.set("unrelated", cred("other", "other-password"), actor="admin")
     with pytest.raises(CredentialBlocked):
         resolver.resolve(ref, device="ns1")
-    vault.set("nr_nitro", cred(), actor="admin")
+    vault.set("sc_nitro", cred(), actor="admin")
     with pytest.raises(CredentialBlocked):
         resolver.resolve(ref, device="ns1")
 
-    replacement = cred("nr_nitro", "rotated-password")
-    vault.set("nr_nitro", replacement, actor="admin")
+    replacement = cred("sc_nitro", "rotated-password")
+    vault.set("sc_nitro", replacement, actor="admin")
     assert resolver.resolve(ref, device="ns1") == replacement
     assert resolver.guard.blocked() == []
 
 
-@pytest.mark.parametrize("bad", ["nr_nitro", "local:", ":x", "local:bad name"])
+@pytest.mark.parametrize("bad", ["sc_nitro", "local:", ":x", "local:bad name"])
 def test_bad_refs(bad: str) -> None:
     with pytest.raises(CredentialError):
         CredentialRef.parse(bad)

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from netrescale import appliance
-from netrescale.collect.fim import (
+from scalar import appliance
+from scalar.collect.fim import (
     CONTENT_DENY,
     TIER_A,
     WATCHES,
@@ -16,12 +16,12 @@ from netrescale.collect.fim import (
     Watch,
     content_allowed,
 )
-from netrescale.config import DeviceFim, FimDefaults, load_config
-from netrescale.detect.findings import Finding
-from netrescale.detect.severity import Severity
-from netrescale.secrets.base import Credential
-from netrescale.store.snapshots import FileSnapshotStore
-from netrescale.transport.nitro import (
+from scalar.config import DeviceFim, FimDefaults, load_config
+from scalar.detect.findings import Finding
+from scalar.detect.severity import Severity
+from scalar.secrets.base import Credential
+from scalar.store.snapshots import FileSnapshotStore
+from scalar.transport.nitro import (
     AuthRejected,
     NitroClient,
     NitroError,
@@ -59,7 +59,7 @@ FILES = {
 }
 
 
-def client(fake: FakeNitro, user: str = "nr_nitro", pw: str = "nitro-password") -> NitroClient:
+def client(fake: FakeNitro, user: str = "sc_nitro", pw: str = "nitro-password") -> NitroClient:
     return NitroClient(TARGET, lambda: Credential(user, pw), transport=fake.transport())
 
 
@@ -656,7 +656,7 @@ def test_fim_read_policy_refuses_keys_config_and_cores(command: str) -> None:
 
 def test_fim_snippet_is_marked_verify_and_fits_a_cmdspec() -> None:
     snippet = appliance.fim_snippet()
-    assert "VERIFY" in snippet and "nr_fim" in snippet
+    assert "VERIFY" in snippet and "sc_fim" in snippet
     for regex in (appliance.FIM_LIST_REGEX, appliance.FIM_READ_REGEX,
                   appliance.FIM_VERSION_REGEX):
         assert f'"{regex}"' in snippet
@@ -672,11 +672,11 @@ def test_tier_a_paths_are_all_in_the_policy() -> None:
 def test_device_snippet_prints_the_fim_account_only_when_enabled() -> None:
     cfg = load_config(Path(__file__).parents[2] / "deploy" / "config.example.yaml")
     device = cfg.devices[0]
-    assert "add system user nr_fim" not in appliance.device_snippet(cfg, device, "192.0.2.5")
+    assert "add system user sc_fim" not in appliance.device_snippet(cfg, device, "192.0.2.5")
     enabled = device.model_copy(update={"fim": DeviceFim(enabled=True)})
     snippet = appliance.device_snippet(cfg, enabled, "192.0.2.5")
-    assert "bind system user nr_fim netrescale_fim_list 100" in snippet
-    assert "add system cmdPolicy netrescale_ro ALLOW" in snippet
+    assert "bind system user sc_fim scalar_fim_list 100" in snippet
+    assert "add system cmdPolicy scalar_ro ALLOW" in snippet
 
 
 async def test_attacker_chosen_file_names_cannot_forge_summary_lines(tmp_path: Path) -> None:

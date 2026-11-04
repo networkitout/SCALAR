@@ -52,10 +52,10 @@ Tier 0 was implemented, adversarially reviewed and fixed.
 
 Still to do:
 
-- **Validate classifier framing on real appliances.** The syslog tag map and the RFC 5424 vs RFC 3164 framing are inferred from documentation. Capture archive samples per firmware (`netrescale archive search`) and confirm them, especially for `nsppe` and other daemons.
+- **Validate classifier framing on real appliances.** The syslog tag map and the RFC 5424 vs RFC 3164 framing are inferred from documentation. Capture archive samples per firmware (`scalar archive search`) and confirm them, especially for `nsppe` and other daemons.
 - **Tune `dedup_by` for noisy rules.** Rules that match on message or raw text intentionally keep one notification per rule and device, because unauthenticated senders can vary that text. Shell and `Command` rules now get actor + command keys.
 - **Handle devices that cannot export management logs.** Add a per-device opt-out or the `-managementlog` posture check. HA secondaries over TCP and 13.1 non-FIPS builds would otherwise show "log sources never received" in every digest.
-- **Merge the new unit settings on upgrade.** Existing installs only get the new `StartLimit*` settings if an admin merges `netrescale.service.packaged`; the upgrade notes are in `docs/operations.md`.
+- **Merge the new unit settings on upgrade.** Existing installs only get the new `StartLimit*` settings if an admin merges `scalar.service.packaged`; the upgrade notes are in `docs/operations.md`.
 - **Expect one duplicate notification after upgrading.** The dedup key format changed, so each rule and device may notify once more.
 - **Expect one repeat sink-failure alert after a restart.** The failure clock now survives restarts and reloads, but the "already alerted" flag does not, so a sink that is still failing is reported once more.
 
@@ -75,14 +75,14 @@ Each item is high impact and roughly M effort. The order is the recommended buil
 1. **Read-only file-integrity monitoring over NITRO `systemfile`.** This is the single largest blind spot. Today there is no visibility of webshells, modified logon pages, `rc.netscaler`/`nsafter.sh`, crontabs, `authorized_keys`, or core dumps in `/var/core` and `/var/crash`. `NitroClient.system_file()` already exists but is only used for `/var/log`.
    - **First, a feasibility spike:** confirm on 13.1 and 14.1 which directories a listing-only account can read.
    - **Then build:** a Tier A path list checked every probe and hashed (boot hooks, crontabs, ssh keys, httpd.conf), and Tier B web roots walked every 5–15 min. Alert on new script files or changed hashes.
-   - **Account design:** use a *separate* listing-only account, so that `nr_nitro` can be narrowed to `/var/log` (see 1.7). Where NITRO refuses a path, NetScaler Console FIM or opt-in SSH sweeps are the fallback.
+   - **Account design:** use a *separate* listing-only account, so that `sc_nitro` can be narrowed to `/var/log` (see 1.7). Where NITRO refuses a path, NetScaler Console FIM or opt-in SSH sweeps are the fallback.
    - *(config-fim-systemfile, gap-collect-crash-artifacts)*
-   - **Status: built against the emulator, not yet validated on an appliance.** The code is in `collect/fim.py`, with `NitroClient.list_files`/`walk_files`, `fim_loop` in the daemon, the opt-in `devices[].fim.enabled` and `defaults.fim`, and the `nr_fim` account snippet. Operator notes are in `docs/operations.md` under "File-integrity monitoring". The feasibility spike is the `prod_probe` test `tests/prod/test_fim_feasibility.py`; run it before enabling FIM on any device. An adversarial review found 8 defects: content that went unverified silently, lost or mis-graded changes, and gaps in the SSH-key deny list. All 8 were fixed and each has a regression test in `tests/unit/test_fim.py`. Known limit: symlinks inside watched directories cannot be told apart through NITRO. See "Needs validation on a real appliance" below.
-2. **Assess the first baseline instead of trusting it.** The first poll silently accepts a config that may already be compromised. Run the forensic state checks on the baseline, emit a `baseline-inventory` finding (users, cmdPolicies, page-injection actions, auth servers, syslog destinations, management IPs), and add `netrescale config approve`. *(config-baseline-unassessed)*
+   - **Status: built against the emulator, not yet validated on an appliance.** The code is in `collect/fim.py`, with `NitroClient.list_files`/`walk_files`, `fim_loop` in the daemon, the opt-in `devices[].fim.enabled` and `defaults.fim`, and the `sc_fim` account snippet. Operator notes are in `docs/operations.md` under "File-integrity monitoring". The feasibility spike is the `prod_probe` test `tests/prod/test_fim_feasibility.py`; run it before enabling FIM on any device. An adversarial review found 8 defects: content that went unverified silently, lost or mis-graded changes, and gaps in the SSH-key deny list. All 8 were fixed and each has a regression test in `tests/unit/test_fim.py`. Known limit: symlinks inside watched directories cannot be told apart through NITRO. See "Needs validation on a real appliance" below.
+2. **Assess the first baseline instead of trusting it.** The first poll silently accepts a config that may already be compromised. Run the forensic state checks on the baseline, emit a `baseline-inventory` finding (users, cmdPolicies, page-injection actions, auth servers, syslog destinations, management IPs), and add `scalar config approve`. *(config-baseline-unassessed)*
 3. **Self-audit canary.** The monitor's own NITRO `show` calls should appear as `CMD_EXECUTED` in the forwarded audit log. Arm the check per device once it has been seen. Alert when it disappears, which means audit logging or forwarding was altered while other traffic still flows. Also alert when the monitor's own account is used from another IP. *(pipeline-self-audit-canary)*
 4. **Appliance telemetry poller.** Poll `stat ns`, `hanode` and `nsversion` every `intervals.stats` seconds (the setting exists but is unused). Detect reboots (and force a full config fetch), HA failovers, degraded nodes, disk pressure, firmware upgrades and downgrades, and unmonitored HA peers. Feed a boot id into `SessionTracker` to stop false session-reuse findings after reboots. Print post-patch session-kill reminders once every node is fixed. *(pipeline-appliance-telemetry-missing, zeroday-post-patch-verification)*
 5. **Zero-day content agility.**
-   - Add a validated `content_dir` override for `cve_builds.yaml`, rules and config-risk data, so an emergency advisory or rule needs no reinstall. Add `netrescale content status`, and record `data_version` and content hash in finding evidence.
+   - Add a validated `content_dir` override for `cve_builds.yaml`, rules and config-risk data, so an emergency advisory or rule needs no reinstall. Add `scalar content status`, and record `data_version` and content hash in finding evidence.
    - Add a KEV + CVE.org (NetScaler CNA) watcher as a separate egress-allowed oneshot. It produces draft YAML only, never auto-activated.
    - Emit a "new or changed advisory affects devices X, Y" finding.
    - Build a chunked retro-hunt over the 365-day raw archive whenever a new advisory or CVE-tagged rule lands.
@@ -96,11 +96,11 @@ Each item is high impact and roughly M effort. The order is the recommended buil
 
    Use a live path that is safe against slow regexes (bounded patterns or a timeout guard). *(logdet-exploit-agnostic-shell-behaviors, logdet-2026-signals-safe-live-promotion)*
 7. **Make the monitor's privilege separation real.** The web UI and the daemon run as the same user. The control socket trusts a self-asserted `actor` and exposes `vault.backup`, which exports the vault master key. One phished dashboard password (there is no MFA) therefore yields every NetScaler credential. To fix:
-   - run the web UI as its own `netrescale-web` user with a read-mostly DB role;
+   - run the web UI as its own `scalar-web` user with a read-mostly DB role;
    - remove `vault.backup`/`vault.restore` from the web (the root CLI keeps them);
    - hash-chain `administration.jsonl`;
    - send tamper findings through the *pre-change* sinks;
-   - narrow the printed `netrescale_ro` policy so `show system file` covers only `/var/log`;
+   - narrow the printed `scalar_ro` policy so `show system file` covers only `/var/log`;
    - have the daemon verify its own account's bindings.
    - *(sec-web-daemon-privsep-nominal, sec-monitor-tamper-not-alerted, sec-nitro-account-overbroad-unverified)*
 8. **HA secondaries send no management logs.** NetScaler does not export management logs (shell, access, auth) from HA secondaries over TCP by default, and the printed snippet uses TCP. Add a posture check that the `auditsyslogaction` pointing here includes SHELL and ACCESS for this firmware, partition and HA role. Also add a scheduled read-only NITRO log pull from secondaries to reconcile against syslog, which also catches logs wiped on the box. *(gap-collect-nitro-log-pull-reconciliation, logdet-per-source-coverage-blindness)*
@@ -158,11 +158,11 @@ Each item is high impact and roughly M effort. The order is the recommended buil
 ## Needs validation on a real appliance
 
 - **Syslog framing per firmware.** 14.1-29+ exports management logs as RFC 5424. Capture samples from the raw archive and confirm the classifier's tag map.
-- **File-integrity monitoring (Tier 1.1).** Run `tests/prod/test_fim_feasibility.py` (marker `prod_probe`) on an HA secondary of 13.1, 13.1-FIPS and 14.1, as `nr_fim` and once as `nr_nitro`, and confirm:
+- **File-integrity monitoring (Tier 1.1).** Run `tests/prod/test_fim_feasibility.py` (marker `prod_probe`) on an HA secondary of 13.1, 13.1-FIPS and 14.1, as `sc_fim` and once as `sc_nitro`, and confirm:
   - **Paths:** which watched directories each account can list and read; whether `/nsconfig`, `/var/pubkey`, `/var/cron/tabs` and `/etc` are listable through NITRO at all; and whether firmware restricts `systemfile` to a fixed set of locations.
   - **Listing shape:** the fields, the `filemode` values (array vs string, `DIRECTORY`), the `filesize` type, and whether a listing ever carries `filecontent`.
   - **Missing directories:** the HTTP status, errorcode and message for a directory that does not exist. `collect/fim.py` `_absent()` assumes 404, "no such file" or "does not exist"; anything else shows up as a permanent coverage gap.
-  - **Command policy:** the exact command text NITRO `GET systemfile` is matched against (argument order, `-fileLocation` quoting); whether `\x22` in a cmdSpec matches a double quote; the maximum cmdSpec length; and that `nr_fim` is refused `/nsconfig/ssl`, `/nsconfig/keys` and `ns.conf`. These are the VERIFY lines in `appliance.py`.
+  - **Command policy:** the exact command text NITRO `GET systemfile` is matched against (argument order, `-fileLocation` quoting); whether `\x22` in a cmdSpec matches a double quote; the maximum cmdSpec length; and that `sc_fim` is refused `/nsconfig/ssl`, `/nsconfig/keys` and `ns.conf`. These are the VERIFY lines in `appliance.py`.
   - **Reboots and upgrades:** whether a reboot re-extracts `/netscaler/ns_gui` or `/var/netscaler/logon` with new mtimes, and how many files a firmware upgrade changes. Tune `max_hashes`, `max_entries` and `walk_seconds` from these counts and the walk times.
   - **Audit-log noise:** how many `CMD_EXECUTED` lines one Tier A probe (about 6 listings) and one Tier B pass add to ns.log. This matters for the self-audit canary (Tier 1.3).
 - **Management-log export behaviour.** Confirm whether HA secondaries export over TCP and UDP, and whether 13.1 non-FIPS builds can export at all.

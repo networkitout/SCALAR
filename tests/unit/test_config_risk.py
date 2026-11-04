@@ -4,9 +4,9 @@ from collections import Counter
 
 import pytest
 
-from netrescale.detect.config_risk import RiskRules, load_risk_rules
-from netrescale.detect.severity import Severity
-from netrescale.parse.nsconf import parse_command
+from scalar.detect.config_risk import RiskRules, load_risk_rules
+from scalar.detect.severity import Severity
+from scalar.parse.nsconf import parse_command
 
 RULES = load_risk_rules()
 

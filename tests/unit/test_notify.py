@@ -5,20 +5,20 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from netrescale.config import SiemSink, WebhookSink
-from netrescale.detect.config_diff import diff_configs
-from netrescale.detect.config_risk import load_risk_rules
-from netrescale.detect.findings import Finding, from_config_diff
-from netrescale.detect.severity import Severity
-from netrescale.notify import formats
-from netrescale.notify.sinks import (
+from scalar.config import SiemSink, WebhookSink
+from scalar.detect.config_diff import diff_configs
+from scalar.detect.config_risk import load_risk_rules
+from scalar.detect.findings import Finding, from_config_diff
+from scalar.detect.severity import Severity
+from scalar.notify import formats
+from scalar.notify.sinks import (
     OutboundSecretLeak,
     Router,
     SiemNotifier,
     WebhookNotifier,
     guard_outbound,
 )
-from netrescale.redact import registry
+from scalar.redact import registry
 
 T = datetime(2026, 10, 5, 10, 0, 1, tzinfo=UTC)
 
@@ -44,7 +44,7 @@ def test_ecs_shape() -> None:
 def test_cef_escaping() -> None:
     cef = formats.to_cef(finding())
     header, ext = cef.rsplit("|", 1)
-    assert header.startswith("CEF:0|netrescale|netrescale|")
+    assert header.startswith("CEF:0|scalar|scalar|")
     assert "High-risk \\| management=command" in header  # | escaped in header, = left alone
     assert "msg=line1\\nline2 a\\=b \\\\ c" in ext
     assert "\n" not in cef
@@ -54,7 +54,7 @@ def test_cef_escaping() -> None:
 def test_rfc5424_and_octet_framing() -> None:
     msg = formats.rfc5424("hello\nworld", Severity.CRITICAL, hostname="h",
                           timestamp="2026-10-05T10:00:01.000Z")
-    assert msg == b"<162>1 2026-10-05T10:00:01.000Z h netrescale - FINDING - hello\nworld"
+    assert msg == b"<162>1 2026-10-05T10:00:01.000Z h scalar - FINDING - hello\nworld"
     framed = formats.octet_frame(msg)
     n, _, rest = framed.partition(b" ")
     assert int(n) == len(rest) == len(msg)
@@ -138,7 +138,7 @@ async def test_siem_tcp_delivery_and_reconnect() -> None:
         await asyncio.sleep(0.2)
         await sink.aclose()
         payloads = b"".join(received)
-        assert payloads.count(b"netrescale - FINDING - ") >= 1
+        assert payloads.count(b"scalar - FINDING - ") >= 1
         n, _, rest = received[0].partition(b" ")
         assert int(n) == len(rest)
         body = rest.split(b" - FINDING - ", 1)[1]

@@ -8,7 +8,7 @@ import yaml
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from netrescale.detect.rules import (
+from scalar.detect.rules import (
     ListMatcher,
     LogRule,
     RuleEngine,
@@ -16,13 +16,13 @@ from netrescale.detect.rules import (
     load_rules,
     parse_rule,
 )
-from netrescale.detect.sessions import SessionTracker
-from netrescale.parse.nslog import LogEvent, parse_line, parse_nslog
+from scalar.detect.sessions import SessionTracker
+from scalar.parse.nslog import LogEvent, parse_line, parse_nslog
 
 RULES = load_rules()
 LISTS = {
     "admin_networks": ListMatcher(["10.0.0.0/8"]),
-    "admin_users": ListMatcher(["admin1", "nsroot", "nr_nitro"]),
+    "admin_users": ListMatcher(["admin1", "nsroot", "sc_nitro"]),
 }
 
 NS = "Oct  5 10:00:01 <local0.info> 10.0.0.10 2026/10/05:10:00:01 GMT ns-gw-01 0-PPE-0 : "
@@ -211,8 +211,8 @@ def test_invalid_dedup_by_rejected(dedup_by: object) -> None:
 
 
 def test_known_fields_cover_every_parser_field() -> None:
-    from netrescale.detect.rules import KNOWN_FIELDS
-    from netrescale.parse import nslog
+    from scalar.detect.rules import KNOWN_FIELDS
+    from scalar.parse import nslog
 
     parsed = {nslog._FIELD_NAMES.get(key, key) for key in nslog._FIELD_KEYS}
     assert parsed | {"Rejected_user", nslog.INJECTION_FIELD, "Tty"} == KNOWN_FIELDS
@@ -228,7 +228,7 @@ def test_dedup_by_rejected_with_threshold() -> None:
 
 
 def test_dedup_digest_does_not_hash_registered_secrets() -> None:
-    from netrescale.redact import registry
+    from scalar.redact import registry
 
     rule = next(r for r in RULES if r.id == "shell-tmp-exec")
     first = SHELL.format(user="nsroot", cmd="/tmp/x -p dedup-secret-one")
@@ -251,7 +251,7 @@ def custom_rule() -> dict:
 
 
 async def test_custom_rules_are_validated_and_retained(tmp_path: Path) -> None:
-    from netrescale.detect.hunt_rules import HuntRuleStore, run_worker
+    from scalar.detect.hunt_rules import HuntRuleStore, run_worker
 
     path = tmp_path / "hunt-rules.json"
     store = HuntRuleStore(path)
@@ -275,7 +275,7 @@ async def test_custom_rules_are_validated_and_retained(tmp_path: Path) -> None:
 
 
 async def test_custom_rule_dedup_by_is_validated_and_kept() -> None:
-    from netrescale.detect.hunt_rules import run_worker
+    from scalar.detect.hunt_rules import run_worker
 
     checked = await run_worker({"mode": "validate", "text": yaml.safe_dump(
         {**custom_rule(), "dedup_by": ["User", "Client_ip"]})})
@@ -293,14 +293,14 @@ async def test_custom_rule_dedup_by_is_validated_and_kept() -> None:
     {"dedup_by": ["User"], "threshold": {"count": 1, "window_seconds": 60}},
 ])
 async def test_custom_rule_invalid_definitions_are_rejected(change: dict) -> None:
-    from netrescale.detect.hunt_rules import run_worker
+    from scalar.detect.hunt_rules import run_worker
 
     with pytest.raises(RuleError):
         await run_worker({"mode": "validate", "text": yaml.safe_dump({**custom_rule(), **change})})
 
 
 async def test_custom_regex_cannot_stall_the_daemon() -> None:
-    from netrescale.detect.hunt_rules import run_worker
+    from scalar.detect.hunt_rules import run_worker
 
     document = custom_rule()
     document["match"]["raw_regex"] = "(a+)+$"
@@ -312,7 +312,7 @@ async def test_custom_regex_cannot_stall_the_daemon() -> None:
 
 
 async def test_script_templates_pass_all_vectors_and_are_opt_in(tmp_path: Path) -> None:
-    from netrescale.detect.hunt_rules import HuntRuleStore, run_worker, templates
+    from scalar.detect.hunt_rules import HuntRuleStore, run_worker, templates
 
     pack = templates()
     assert len(pack["items"]) == 17
