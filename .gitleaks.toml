@@ -8,3 +8,4 @@ useDefault = true
 [allowlist]
 description = "FIM test fixtures"
 paths = ['''tests/unit/test_fim\.py''']
+regexes = ['''_exposure-ns-gw-01''']  # state-store key name in test_service.py, not a secret

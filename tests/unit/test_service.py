@@ -696,7 +696,7 @@ async def test_lifecycle_is_reported_on_change_and_weekly_not_daily(setup) -> No
     assert [d.sink for d in queued] == ["smtp"]
     service = Service(service.rt, sinks=[email], database=service.db)
     assert len(await runs(1)) == 1  # restart: the state is durable
-    key = "_exposure-ns-gw-01"
+    key = "_exposure-ns-gw-01"  # gitleaks:allow (state key name)
     state = service.store.get_state(key)
     state["reported_at"] = (datetime.now(UTC) - timedelta(days=8)).isoformat()
     service.store.set_state(key, state)
