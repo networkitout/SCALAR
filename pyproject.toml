@@ -51,6 +51,7 @@ netrescale = ["data/*.yaml", "data/rules/*.yaml", "data/iocs/*.yaml", "web/stati
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "auto"
 markers = [
     "linux: requires Linux (systemd-creds, unix sockets, SO_PEERCRED)",

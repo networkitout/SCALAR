@@ -1,0 +1,10 @@
+title = "netrescale gitleaks config"
+
+[extend]
+useDefault = true
+
+# Test fixtures that mimic a NetScaler's key *file names and header lines* so the
+# file-integrity monitor can be exercised. They contain no key material.
+[allowlist]
+description = "FIM test fixtures"
+paths = ['''tests/unit/test_fim\.py''']
